@@ -237,3 +237,18 @@ app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
 
+(async () => {
+  try {
+    await mongoose.connection.collection("crm_logs").insertOne({
+      name: "Test Manual",
+      phone: "0000000000",
+      message: "Manual Insert",
+      ai_note: "It worked!",
+      timestamp: new Date().toISOString()
+    });
+    console.log("✅ Manual Test Insert Passed");
+  } catch (e) {
+    console.error("❌ Manual Test Failed:", e.message);
+  }
+})();
+
