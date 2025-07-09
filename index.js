@@ -59,3 +59,33 @@ async function getGPTReply(userText) {
   });
   return response.data.choices[0].message.content;
 }
+
+const MessageModel = mongoose.model('Message', new mongoose.Schema({
+  from: String,
+  to: String,
+  text: String,
+  timestamp: String,
+  wa_id: String,
+  fullPayload: Object
+}));
+
+async function saveToMongo(data) {
+  try {
+    const msg = data.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if (!msg) return;
+
+    const record = new MessageModel({
+      from: msg.from,
+      to: data.entry[0].changes[0].value.metadata?.display_phone_number || '',
+      text: msg.text?.body || '',
+      timestamp: msg.timestamp,
+      wa_id: data.entry[0].changes[0].value.contacts?.[0]?.wa_id || '',
+      fullPayload: data
+    });
+
+    await record.save();
+    console.log("✅ Message saved to MongoDB");
+  } catch (err) {
+    console.error("❌ MongoDB Save Error:", err.message);
+  }
+}
