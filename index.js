@@ -1,4 +1,4 @@
-require('dotenv').config();
+ilerequire('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -173,6 +173,16 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
+
+  app.post('/tiledesk-agent-reply', async (req, res) => {
+  const reply = req.body;
+  const message = reply.text;
+  const wa_id = reply.recipient; // Or however you saved the phone
+
+  await sendWhatsAppReply(wa_id, message);
+
+  res.sendStatus(200);
+});
 
   try {
     const res = await axios.post(url, {
