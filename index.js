@@ -127,6 +127,27 @@ async function handleGPTandCRM(data) {
     const aiNote = completion.data.choices?.[0]?.message?.content?.trim();
     console.log("🧠 GPT Note:", aiNote);
 
+    // 📤 Send message back to WhatsApp
+async function sendWhatsAppReply(to_wa_id, message_text) {
+  try {
+    await axios.post(`https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      messaging_product: "whatsapp",
+      to: to_wa_id,
+      type: "text",
+      text: { body: message_text }
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.META_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log("✅ Message sent to WhatsApp:", message_text);
+  } catch (err) {
+    console.error("❌ Error sending message to WhatsApp:", err.response?.data || err.message);
+  }
+}
+
     // ✅ Save to CRM (Mongo)
     const crmEntry = {
       name: name || "Unknown",
@@ -196,3 +217,4 @@ async function sendTiledeskReply(requestId, replyText) {
 app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
+
