@@ -103,7 +103,6 @@ async function saveToMongo(data) {
   }
 }
 
-// ✅ Handle GPT + CRM Write
 async function handleGPTandCRM(data) {
   try {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
@@ -119,7 +118,7 @@ async function handleGPTandCRM(data) {
     const completion = await openai.createChatCompletion({
       model: "gpt-4",
       messages: [
-        { role: "system", content: "You are a CRM tagging assistant for a jewellery business. Read customer message and generate a one-line tag." },
+        { role: "system", content: "You are a CRM tagging assistant for a jewellery brand. Read the message and write a one-line tag." },
         { role: "user", content: text }
       ],
       max_tokens: 50
@@ -128,6 +127,7 @@ async function handleGPTandCRM(data) {
     const aiNote = completion.data.choices?.[0]?.message?.content?.trim();
     console.log("🧠 GPT Note:", aiNote);
 
+    // ✅ Save to CRM (Mongo)
     const crmEntry = {
       name: name || "Unknown",
       phone: wa_id,
@@ -139,10 +139,36 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("✅ CRM Entry Saved:", crmEntry);
 
+    // ✅ Send Auto-Reply via Tiledesk
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
+    if (requestId) {
+      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
+    }
+
   } catch (err) {
     console.error("❌ GPT+CRM Error:", err.message);
   }
 }
+
+async function sendTiledeskReply(requestId, replyText) {
+  const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
+
+  try {
+    const res = await axios.post(url, {
+      text: replyText,
+      type: "text"
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log("✅ Auto-reply sent to Tiledesk:", res.status);
+  } catch (err) {
+    console.error("❌ Tiledesk Reply Error:", err.message);
+  }
+}
+
 
     // ✅ Push message to Tiledesk Inbox UI
     await axios.post(
