@@ -117,6 +117,9 @@ const text = message?.text?.body || '';
 console.log("🚀 Step 4: Text to GPT = ", text);
 console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
 
+    console.log("🔍 CRM Insertion Attempt:", crmEntry);
+await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
+
 
     if (!message || !wa_id) return;
 
