@@ -62,16 +62,24 @@ const MessageModel = mongoose.model('Message', new mongoose.Schema({
   fullPayload: Object
 }));
 
-// ✅ Webhook POST Handler with GPT + CRM:
+// ✅ Webhook POST Handler with GPT + CRM + Filter for message_echoes
 app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
-  res.sendStatus(200); // Respond to Meta first to avoid 502
+  res.sendStatus(200); // Always respond quickly to Meta
 
   const data = req.body;
   console.log("📩 Received WhatsApp Message", JSON.stringify(data));
 
+  const field = data?.entry?.[0]?.changes?.[0]?.field;
+
+  if (field === "message_echoes") {
+    console.log("⚠️ Skipping message_echoes event");
+    return;
+  }
+
   await saveToMongo(data);
   await handleGPTandCRM(data);
 });
+
 
 // ✅ Save Message to MongoDB
 async function saveToMongo(data) {
