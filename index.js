@@ -117,10 +117,6 @@ const text = message?.text?.body || '';
 console.log("🚀 Step 4: Text to GPT = ", text);
 console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
 
-    console.log("🔍 CRM Insertion Attempt:", crmEntry);
-await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-
-
     if (!message || !wa_id) return;
 
     const text = message?.text?.body || '';
@@ -159,6 +155,8 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
       ai_note: aiNote || "No note",
       timestamp: new Date().toISOString()
     };
+    console.log("🔍 CRM Insertion Attempt:", crmEntry);
+await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
 
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("✅ CRM Entry Saved:", crmEntry);
