@@ -109,6 +109,15 @@ async function handleGPTandCRM(data) {
     const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
 
+    console.log("🚀 Step 1: Entered handleGPTandCRM()");
+console.log("🚀 Step 2: Full payload = ", JSON.stringify(data, null, 2));
+    const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+console.log("🚀 Step 3: message = ", message);
+const text = message?.text?.body || '';
+console.log("🚀 Step 4: Text to GPT = ", text);
+console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
+
+
     if (!message || !wa_id) return;
 
     const text = message?.text?.body || '';
