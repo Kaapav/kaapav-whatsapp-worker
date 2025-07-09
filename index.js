@@ -123,18 +123,9 @@ console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
     const text = message?.text?.body || '';
     console.log("🧠 GPT Triggered for:", text);
 
-    // ✅ GPT Call
-    const completion = await openai.createChatCompletion({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a CRM tagging assistant for a jewellery brand. Read the message and write a one-line tag." },
-        { role: "user", content: text }
-      ],
-      max_tokens: 50
-    });
+  const aiNote = "Test Tag";
+console.log("🧠 TEMP GPT Note:", aiNote);
 
-    const aiNote = completion.data.choices?.[0]?.message?.content?.trim();
-    console.log("🧠 GPT Note:", aiNote);
 
     // 📤 Send message back to WhatsApp
 async function sendWhatsAppReply(to_wa_id, message_text) {
