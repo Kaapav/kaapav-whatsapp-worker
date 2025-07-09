@@ -130,7 +130,7 @@ async function handleGPTandCRM(data) {
     // 📤 Send message back to WhatsApp
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    await axios.post(`https://graph.facebook.com/v18.0/${process.env.745230991999571}/messages`, {
       messaging_product: "whatsapp",
       to: to_wa_id,
       type: "text",
