@@ -144,6 +144,28 @@ async function handleGPTandCRM(data) {
   }
 }
 
+    // ✅ Push message to Tiledesk Inbox UI
+    await axios.post(
+      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
+      {
+        sender: wa_id,
+        text: text,
+        attributes: { source: "whatsapp" }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TILEDESK_API_KEY}`
+        }
+      }
+    );
+
+    console.log("📤 Message pushed to Tiledesk UI");
+
+  } catch (err) {
+    console.error("❌ GPT+CRM Error:", err.message);
+  }
+}
+
 // ✅ Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
