@@ -63,26 +63,19 @@ const MessageModel = mongoose.model('Message', new mongoose.Schema({
   fullPayload: Object
 }));
 
-// ✅ Webhook POST Handler with GPT + CRM + Filter for message_echoes
+// ✅ Webhook POST Handler
 app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
-   console.log("🔥 POST /webhooks/whatsapp/cloudapi triggered");
+  console.log("🔥 POST /webhooks/whatsapp/cloudapi triggered");
   console.log("📥 Payload:", JSON.stringify(req.body, null, 2));
-  res.sendStatus(200); // Always respond quickly to Meta
+  res.sendStatus(200);
 
   const data = req.body;
-  console.log("📩 Received WhatsApp Message", JSON.stringify(data));
-
   const field = data?.entry?.[0]?.changes?.[0]?.field;
-
-  if (field === "message_echoes") {
-    console.log("⚠️ Skipping message_echoes event");
-    return;
-  }
+  if (field === "message_echoes") return;
 
   await saveToMongo(data);
   await handleGPTandCRM(data);
 });
-
 
 // ✅ Save Message to MongoDB
 async function saveToMongo(data) {
@@ -106,58 +99,45 @@ async function saveToMongo(data) {
   }
 }
 
+// ✅ CRM Handler
 async function handleGPTandCRM(data) {
   try {
-    console.log("✅ CRM Entry Saved:", crmEntry);
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
 
-    console.log("🚀 Step 1: Entered handleGPTandCRM()");
-    console.log("🚀 Step 2: Full payload = ", JSON.stringify(data, null, 2));
-    console.log("🚀 Step 3: message = ", message);
-
     if (!message || !wa_id) return;
 
-    // ✅ Declare once
     const text = message?.text?.body || '';
-    console.log("🚀 Step 4: Text to GPT = ", text);
-
-    // ✅ Simulated AI Tagging
     const aiNote = "Test Tag";
-    console.log("🧠 TEMP GPT Note:", aiNote);
 
-    // ✅ Prepare CRM Entry first, then log it
     const crmEntry = {
       name: name || "Unknown",
       phone: wa_id,
       message: text,
-      ai_note: aiNote || "No note",
+      ai_note: aiNote,
       timestamp: new Date().toISOString()
     };
 
- // ✅ Save to MongoDB CRM
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-    
-    console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
-    
-    // ✅ Auto-reply via Tiledesk (optional)
+    console.log("🚀 CRM Entry Saved:", crmEntry);
+
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
     if (requestId) {
       await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
     }
- // ✅ Push message to Tiledesk Inbox UI
+
     await axios.post(
       'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
       {
-         sender: wa_id,
-    text: text,
-    attributes: { source: "whatsapp" }
-       },
+        sender: wa_id,
+        text: text,
+        attributes: { source: "whatsapp" }
+      },
       {
         headers: {
           Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-           'Content-Type': 'application/json'
+          'Content-Type': 'application/json'
         }
       }
     );
@@ -167,7 +147,7 @@ async function handleGPTandCRM(data) {
   }
 }
 
-    // 📤 Send message back to WhatsApp
+// ✅ WhatsApp Send
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
     await axios.post(`https://graph.facebook.com/v18.0/${process.env.WA_PHONE_ID}/messages`, {
@@ -184,43 +164,46 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 
     console.log("✅ Message sent to WhatsApp:", message_text);
   } catch (err) {
-    console.error("❌ Error sending message to WhatsApp:", err.response?.data || err.message);
+    console.error("❌ WhatsApp Send Error:", err.response?.data || err.message);
   }
 }
 
-  async function sendTiledeskReply(requestId, replyText) {
-    const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
-    try {
-      const res = await axios.post(url, {
-        text: replyText,
-        type: "text"
-      }, {
-        headers: {
-          Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log("✅ Auto-reply sent to Tiledesk:", res.status);
-    } catch (err) {
-      console.error("❌ Tiledesk Reply Error:", err.message);
-    }
+// ✅ Tiledesk Reply
+async function sendTiledeskReply(requestId, replyText) {
+  const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
+  try {
+    const res = await axios.post(url, {
+      text: replyText,
+      type: "text"
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log("✅ Auto-reply sent to Tiledesk:", res.status);
+  } catch (err) {
+    console.error("❌ Tiledesk Reply Error:", err.message);
   }
+}
 
- app.post('/tiledesk-agent-reply', async (req, res) => {
+// ✅ Agent reply to WhatsApp
+app.post('/tiledesk-agent-reply', async (req, res) => {
   const reply = req.body;
   const message = reply.text;
-  const wa_id = reply.recipient; // Or however you saved the phone
+  const wa_id = reply.recipient;
 
   await sendWhatsAppReply(wa_id, message);
 
-  res.sendStatus(500);
-});  
+  res.sendStatus(200);
+});
 
 // ✅ Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
 
+// ✅ Manual CRM Insert
 (async () => {
   try {
     await mongoose.connection.collection("crm_logs").insertOne({
@@ -236,16 +219,8 @@ app.listen(PORT, () => {
   }
 })();
 
-process.on('uncaughtException', err => {
-  console.error("❌ Uncaught Exception:", err.message);
-});
-
-process.on('unhandledRejection', (reason, p) => {
-  console.error("❌ Unhandled Rejection:", reason);
-});
-
+// ✅ Debug Endpoint
 app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
-
 });
