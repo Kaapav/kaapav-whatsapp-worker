@@ -169,6 +169,19 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 // ✅ Tiledesk Reply
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
+
+  // 🔍 DEBUG: Log full payload before sending
+  console.log("📤 Sending Auto-reply to Tiledesk:");
+  console.log("🔸 URL:", url);
+  console.log("🔸 Payload:", {
+    text: replyText,
+    type: "text"
+  });
+  console.log("🔸 Headers:", {
+    Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+    'Content-Type': 'application/json'
+  });
+
   try {
     const res = await axios.post(url, {
       text: replyText,
@@ -181,9 +194,11 @@ async function sendTiledeskReply(requestId, replyText) {
     });
     console.log("✅ Auto-reply sent to Tiledesk:", res.status);
   } catch (err) {
-    console.error("❌ Tiledesk Reply Error:", err.message);
+    // 🔥 ERROR LOGGING
+    console.error("❌ Tiledesk Reply Error:", err.response?.data || err.message);
   }
 }
+
 
 // ✅ Agent reply to WhatsApp
 app.post('/tiledesk-agent-reply', async (req, res) => {
