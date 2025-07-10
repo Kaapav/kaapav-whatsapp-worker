@@ -113,8 +113,7 @@ async function handleGPTandCRM(data) {
 
     console.log("🚀 Step 1: Entered handleGPTandCRM()");
 console.log("🚀 Step 2: Full payload = ", JSON.stringify(data, null, 2));
-    const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-console.log("🚀 Step 3: message = ", message);
+    console.log("🚀 Step 3: message = ", message);
 const text = message?.text?.body || '';
 console.log("🚀 Step 4: Text to GPT = ", text);
 console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
