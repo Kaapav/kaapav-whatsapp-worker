@@ -187,23 +187,23 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
   }
 }
 
-async function sendTiledeskReply(requestId, replyText) {
-  const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
-  try {
-    const res = await axios.post(url, {
-      text: replyText,
-      type: "text"
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    console.log("✅ Auto-reply sent to Tiledesk:", res.status);
-  } catch (err) {
-    console.error("❌ Tiledesk Reply Error:", err.message);
+  async function sendTiledeskReply(requestId, replyText) {
+    const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
+    try {
+      const res = await axios.post(url, {
+        text: replyText,
+        type: "text"
+      }, {
+        headers: {
+          Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log("✅ Auto-reply sent to Tiledesk:", res.status);
+    } catch (err) {
+      console.error("❌ Tiledesk Reply Error:", err.message);
+    }
   }
-}
 
  app.post('/tiledesk-agent-reply', async (req, res) => {
   const reply = req.body;
@@ -213,12 +213,10 @@ async function sendTiledeskReply(requestId, replyText) {
   await sendWhatsAppReply(wa_id, message);
 
   res.sendStatus(200);
-});
-
-  } catch (err) {
+} catch (err) {
     console.error("❌ GPT+CRM Error:", err.message);
   }
-}
+});  
 
 // ✅ Start Server
 app.listen(PORT, () => {
