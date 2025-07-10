@@ -64,8 +64,10 @@ app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
 
   const data = req.body;
   const field = data?.entry?.[0]?.changes?.[0]?.field;
-  if (field === "message_echoes") return;
-
+  if (field === "message_echoes") {
+    return;
+  }
+  
   await saveToMongo(data);
   await handleGPTandCRM(data);
 });
