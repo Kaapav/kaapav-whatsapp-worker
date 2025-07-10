@@ -140,8 +140,7 @@ async function handleGPTandCRM(data) {
     } catch (err) {
       console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
     }
-  } 
-
+  }
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
     await axios.post(
