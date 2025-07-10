@@ -109,7 +109,9 @@ async function handleGPTandCRM(data) {
 
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
-//Push for Tiledesk
+    
+// ✅ Push to Tiledesk
+    
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
 
@@ -140,7 +142,11 @@ async function handleGPTandCRM(data) {
     } catch (err) {
       console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
     }
+  } catch (err) {
+    console.error("❌ GPT+CRM Error:", err.message);
   }
+}
+
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
     await axios.post(
