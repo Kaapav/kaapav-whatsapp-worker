@@ -255,7 +255,6 @@ process.on('unhandledRejection', (reason, p) => {
 
 app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
-  res.send(`📊 CRM Log Count: ${count}`);
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
 
 });
