@@ -108,6 +108,9 @@ async function saveToMongo(data) {
 
 async function handleGPTandCRM(data) {
   try {
+    // ✅ Save to MongoDB CRM
+    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
+    console.log("✅ CRM Entry Saved:", crmEntry);
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
@@ -162,10 +165,6 @@ async function handleGPTandCRM(data) {
     console.error("❌ GPT+CRM Error:", err.message);
   }
 }
-
-  // ✅ Save to MongoDB CRM
-    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-    console.log("✅ CRM Entry Saved:", crmEntry);
 
     // 📤 Send message back to WhatsApp
 async function sendWhatsAppReply(to_wa_id, message_text) {
