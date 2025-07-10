@@ -3,7 +3,7 @@ const axios = require('axios');
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
-const OpenAI = require("openai");
+const { Configuration, OpenAIApi } = require("openai");
 
 const app = express();
 app.use(bodyParser.json());
@@ -34,8 +34,7 @@ app.get('/webhooks/whatsapp/cloudapi', (req, res) => {
   }
 });
 
-// ✅ GPT Setup
-cconst openai = new OpenAI({
+onst configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY
 });
 const openai = new OpenAIApi(configuration);
