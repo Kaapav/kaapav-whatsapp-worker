@@ -64,6 +64,8 @@ const MessageModel = mongoose.model('Message', new mongoose.Schema({
 
 // ✅ Webhook POST Handler with GPT + CRM + Filter for message_echoes
 app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
+   console.log("🔥 POST /webhooks/whatsapp/cloudapi triggered");
+  console.log("📥 Payload:", JSON.stringify(req.body, null, 2));
   res.sendStatus(200); // Always respond quickly to Meta
 
   const data = req.body;
@@ -129,7 +131,7 @@ console.log("🧠 TEMP GPT Note:", aiNote);
     // 📤 Send message back to WhatsApp
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
-    await axios.post(`https://graph.facebook.com/v18.0/${process.env.745230991999571}/messages`, {
+    await axios.post(`https://graph.facebook.com/v18.0/${process.env.WA_PHONE_ID}/messages`, {
       messaging_product: "whatsapp",
       to: to_wa_id,
       type: "text",
@@ -244,3 +246,15 @@ app.listen(PORT, () => {
   }
 })();
 
+process.on('uncaughtException', err => {
+  console.error("❌ Uncaught Exception:", err.message);
+});
+
+process.on('unhandledRejection', (reason, p) => {
+  console.error("❌ Unhandled Rejection:", reason);
+});
+
+app.get('/debug', async (req, res) => {
+  const count = await mongoose.connection.collection("crm_logs").countDocuments();
+  res.send(`📊 CRM Log Count: ${count}`);
+});
