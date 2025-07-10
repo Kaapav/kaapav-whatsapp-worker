@@ -164,7 +164,6 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
     console.error("❌ WhatsApp Send Error:", err.response?.data || err.message);
   }
 }
-}
   
 app.post("/tiledesk-agent-reply", async (req, res) => {
   const reply = req.body;
