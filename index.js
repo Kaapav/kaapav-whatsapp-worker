@@ -159,7 +159,6 @@ while (attempt < maxAttempts) {
 
     
 // ✅ Push to Tiledesk
-    const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
     const text = message?.text?.body || "";
     
