@@ -159,10 +159,14 @@ while (attempt < maxAttempts) {
 
     
 // ✅ Push to Tiledesk
+    const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
+    const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
+    const text = message?.text?.body || "";
     
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
     const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com"; // default if not set
+    
     await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay before POST
     try {
       const tiledeskRes = await axios.post(
