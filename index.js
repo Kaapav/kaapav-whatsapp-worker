@@ -114,10 +114,10 @@ async function handleGPTandCRM(data) {
     
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
-
+    const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com"; // default if not set
     try {
       const tiledeskRes = await axios.post(
-        `https://tiledesk.com/v3/${projectId}/requests/${requestId}/messages`,
+        `${TILEDESK_BASE_URL}/v3/${projectId}/requests/${requestId}/messages`,
         {
           sender: {
             id: wa_id,
