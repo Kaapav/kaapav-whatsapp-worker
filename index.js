@@ -165,8 +165,7 @@ while (attempt < maxAttempts) {
     
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
-    const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com"; // default if not set
-    
+    const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com";
     await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay before POST
     try {
       const tiledeskRes = await axios.post(
