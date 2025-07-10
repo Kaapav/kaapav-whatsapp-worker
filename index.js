@@ -130,7 +130,10 @@ async function handleGPTandCRM(data) {
       {
         sender: wa_id,
         text: text,
-        attributes: { source: "whatsapp" }
+        request_id: requestId,
+        attributes: { 
+          source: "whatsapp" 
+        }
       },
       {
         headers: {
@@ -141,7 +144,7 @@ async function handleGPTandCRM(data) {
     );
     console.log("📤 Message pushed to Tiledesk UI");
   } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
+    console.error("❌ GPT+CRM Error:", err.message?.data || err.message);
   }
 }
 
