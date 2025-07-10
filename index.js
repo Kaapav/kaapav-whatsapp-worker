@@ -155,7 +155,7 @@ async function handleGPTandCRM(data) {
        },
       {
         headers: {
-          Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`
+          Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
            'Content-Type': 'application/json'
         }
       }
