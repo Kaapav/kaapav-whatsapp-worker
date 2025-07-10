@@ -237,14 +237,26 @@ app.listen(PORT, () => {
   }
 })();
 
-// ✅ Debug Endpoint
+// ✅ Memory Log
+app.get('/ping', (req, res) => {
+  const mem = process.memoryUsage();
+  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+});
+
+  // ✅ Debug Endpoint
 app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
 });
 
-// ✅ Memory Log
-app.get('/ping', (req, res) => {
-  const mem = process.memoryUsage();
-  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+  app.listen(PORT, () => {
+  console.log(`🚀 Server is live on port ${PORT}`);
+});
+
+process.on('uncaughtException', err => {
+  console.error("❌ Uncaught Exception:", err.message);
+});
+
+process.on('unhandledRejection', (reason, p) => {
+  console.error("❌ Unhandled Rejection:", reason);
 });
