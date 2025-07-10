@@ -94,6 +94,7 @@ async function handleGPTandCRM(data) {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
+
     if (!message || !wa_id) return;
 
     const text = message?.text?.body || "";
@@ -110,85 +111,56 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
-    // ✅ Retry-safe Tiledesk push block
-const payload = {
-  sender: {
-    id: wa_id,
-    name: name || "WhatsApp User"
-  },
-  text: text,
-  request_id: requestId,
-  attributes: {
-    source: "whatsapp",
-    lead_type: "auto",
-    auto_imported: true
-  }
-};
-
-const headers = {
-  headers: {
-    Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-    "Content-Type": "application/json"
-  }
-};
-
-// ✅ Retry logic with delay
-let attempt = 0;
-const maxAttempts = 3;
-while (attempt < maxAttempts) {
-  try {
-    const res = await axios.post(
-      `https://tiledesk.com/v3/${projectId}/requests/${requestId}/messages`,
-      payload,
-      headers
-    );
-    console.log("📤 Message pushed to Tiledesk UI ✅", res.status);
-    break; // success
-  } catch (err) {
-    if (err.response?.status === 429) {
-      const wait = 1000 * (attempt + 1);
-      console.warn(`⚠️ Rate limited. Retrying after ${wait}ms`);
-      await new Promise(r => setTimeout(r, wait));
-      attempt++;
-    } else {
-      console.error("❌ Tiledesk Push Fatal Error:", err.response?.data || err.message);
-      break;
-    }
-  }
-}
-
-    
-// ✅ Push to Tiledesk
+    // ✅ Declare Tiledesk variables BEFORE using
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
     const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com";
-    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay before POST
-    try {
-      const tiledeskRes = await axios.post(
-        `${TILEDESK_BASE_URL}/v3/${projectId}/requests/${requestId}/messages`,
-        {
-          sender: {
-            id: wa_id,
-            name: name || "WhatsApp User"
-          },
-          text: text,
-          request_id: requestId,
-          attributes: {
-            source: "whatsapp",
-            lead_type: "auto",
-            auto_imported: true
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-            "Content-Type": "application/json"
-          }
+
+    const payload = {
+      sender: {
+        id: wa_id,
+        name: name || "WhatsApp User"
+      },
+      text: text,
+      request_id: requestId,
+      attributes: {
+        source: "whatsapp",
+        lead_type: "auto",
+        auto_imported: true
+      }
+    };
+
+    const headers = {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        "Content-Type": "application/json"
+      }
+    };
+
+    // ✅ Retry logic
+    let attempt = 0;
+    const maxAttempts = 3;
+
+    while (attempt < maxAttempts) {
+      try {
+        const res = await axios.post(
+          `${TILEDESK_BASE_URL}/v3/${projectId}/requests/${requestId}/messages`,
+          payload,
+          headers
+        );
+        console.log("📤 Message pushed to Tiledesk UI ✅", res.status);
+        break; // success
+      } catch (err) {
+        if (err.response?.status === 429) {
+          const wait = 1000 * (attempt + 1);
+          console.warn(`⚠️ Rate limited. Retrying after ${wait}ms`);
+          await new Promise(r => setTimeout(r, wait));
+          attempt++;
+        } else {
+          console.error("❌ Tiledesk Push Fatal Error:", err.response?.data || err.message);
+          break;
         }
-      );
-      console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
-    } catch (err) {
-      console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
+      }
     }
   } catch (err) {
     console.error("❌ GPT+CRM Error:", err.message);
