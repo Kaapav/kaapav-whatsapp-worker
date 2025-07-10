@@ -12,7 +12,8 @@ const PORT = process.env.PORT || 3000;
 
 // ✅ Health Check
 app.get('/ping', (req, res) => {
-  res.send("OK");
+  const mem = process.memoryUsage();
+  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
 });
 
 // ✅ Webhook Verification (Meta)
@@ -22,14 +23,9 @@ app.get('/webhooks/whatsapp/cloudapi', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  console.log("🧪 VERIFY_TOKEN:", VERIFY_TOKEN);
-  console.log("🧪 Received token from Meta:", token);
-
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log("✅ Webhook verified");
     return res.status(200).send(challenge);
   } else {
-    console.error("❌ Webhook verify failed");
     return res.sendStatus(403);
   }
 });
@@ -64,7 +60,6 @@ const MessageModel = mongoose.model('Message', new mongoose.Schema({
 // ✅ Webhook POST Handler
 app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
   console.log("🔥 POST /webhooks/whatsapp/cloudapi triggered");
-  console.log("📥 Payload:", JSON.stringify(req.body, null, 2));
   res.sendStatus(200);
 
   const data = req.body;
@@ -121,64 +116,42 @@ async function handleGPTandCRM(data) {
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
     // ✅ Push to Tiledesk
-     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-   try {
-  const tiledeskRes = await axios.post(
-    `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages`,
-    {
-      sender: {
-        id: wa_id,
-        name: name || "WhatsApp User"
-      },
-      text: text,
-      request_id: requestId,
-      attributes: {
-        source: "whatsapp",
-        lead_type: "auto",
-        auto_imported: true
-      }
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
+    try {
+      const tiledeskRes = await axios.post(
+        `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages`,
+        {
+          sender: {
+            id: wa_id,
+            name: name || "WhatsApp User"
+          },
+          text: text,
+          request_id: requestId,
+          attributes: {
+            source: "whatsapp",
+            lead_type: "auto",
+            auto_imported: true
+          }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
+    } catch (err) {
+      console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
     }
-  );
-  console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
-} catch (err) {
-  console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
+
+    // ✅ Auto-reply (optional)
+    await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
+  } catch (err) {
+    console.error("❌ GPT+CRM Error:", err.message);
+  }
 }
 
-
-// ✅ Agent reply to WhatsApp
-app.post('/tiledesk-agent-reply', async (req, res) => {
-  const reply = req.body;
-  const message = reply.text;
-  const wa_id = reply.recipient;
-
-  await sendWhatsAppReply(wa_id, message);
-
-  res.sendStatus(200);
-});
-
-
-
-// ✅ Manual CRM Insert
-(async () => {
-  try {
-    await mongoose.connection.collection("crm_logs").insertOne({
-      name: "Test Manual",
-      phone: "0000000000",
-      message: "Manual Insert",
-      ai_note: "It worked!",
-      timestamp: new Date().toISOString()
-    });
-    console.log("✅ Manual Test Insert Passed");
-  } catch (e) {
-    console.error("❌ Manual Test Failed:", e.message);
-  }
-})();
 // ✅ WhatsApp Send
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
@@ -204,7 +177,7 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
 
-   try {
+  try {
     const res = await axios.post(url, {
       text: replyText,
       type: "text"
@@ -214,32 +187,23 @@ async function sendTiledeskReply(requestId, replyText) {
         'Content-Type': 'application/json'
       }
     });
-     
-  // 🔍 DEBUG: Log full payload before sending
-  console.log("📤 Sending Auto-reply to Tiledesk:");
-  console.log("🔸 URL:", url);
-  console.log("🔸 Payload:", {
-    text: replyText,
-    type: "text"
-  });
-  console.log("🔸 Headers:", {
-    Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-    'Content-Type': 'application/json'
-  });
-
- 
     console.log("✅ Auto-reply sent to Tiledesk:", res.status);
   } catch (err) {
     console.error("❌ Tiledesk Reply Error:", err.response?.data || err.message);
   }
 }
-// ✅ Memory Log
-app.get('/ping', (req, res) => {
-  const mem = process.memoryUsage();
-  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+
+// ✅ Agent Reply Endpoint
+app.post('/tiledesk-agent-reply', async (req, res) => {
+  const reply = req.body;
+  const message = reply.text;
+  const wa_id = reply.recipient;
+
+  await sendWhatsAppReply(wa_id, message);
+  res.sendStatus(200);
 });
 
-  // ✅ Debug Endpoint
+// ✅ Debug CRM Count
 app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
@@ -250,10 +214,26 @@ app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
 
+// ✅ Manual CRM Insert Test
+(async () => {
+  try {
+    await mongoose.connection.collection("crm_logs").insertOne({
+      name: "Test Manual",
+      phone: "0000000000",
+      message: "Manual Insert",
+      ai_note: "It worked!",
+      timestamp: new Date().toISOString()
+    });
+    console.log("✅ Manual Test Insert Passed");
+  } catch (e) {
+    console.error("❌ Manual Test Failed:", e.message);
+  }
+})();
+
+// ✅ Error Catchers
 process.on('uncaughtException', err => {
   console.error("❌ Uncaught Exception:", err.message);
 });
-
 process.on('unhandledRejection', (reason, p) => {
   console.error("❌ Unhandled Rejection:", reason);
 });
