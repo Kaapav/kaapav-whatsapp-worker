@@ -108,8 +108,6 @@ async function saveToMongo(data) {
 
 async function handleGPTandCRM(data) {
   try {
-    // ✅ Save to MongoDB CRM
-    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("✅ CRM Entry Saved:", crmEntry);
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
@@ -137,6 +135,10 @@ async function handleGPTandCRM(data) {
       ai_note: aiNote || "No note",
       timestamp: new Date().toISOString()
     };
+
+ // ✅ Save to MongoDB CRM
+    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
+    
     console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
 
  // ✅ Push message to Tiledesk Inbox UI
