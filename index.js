@@ -120,32 +120,34 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
-    if (requestId) {
-      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
-    }
-
-    await axios.post(
-      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
-      {
-        sender: wa_id,
-        text: text,
-        request_id: requestId,
-        attributes: { 
-          source: "whatsapp" 
-        }
+    // ✅ Extract request_id or fallback
+     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
+   try {
+  const tiledeskRes = await axios.post(
+    `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages`,
+    {
+      sender: {
+        id: wa_id,
+        name: name || "WhatsApp User"
       },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
+      text: text,
+      request_id: requestId,
+      attributes: {
+        source: "whatsapp",
+        lead_type: "auto",
+        auto_imported: true
       }
-    );
-    console.log("📤 Message pushed to Tiledesk UI");
-  } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message?.data || err.message);
-  }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
+} catch (err) {
+  console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
 }
 
 // ✅ WhatsApp Send
