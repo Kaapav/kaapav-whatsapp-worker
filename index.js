@@ -212,10 +212,7 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 
   await sendWhatsAppReply(wa_id, message);
 
-  res.sendStatus(200);
-} catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
-  }
+  res.sendStatus(500);
 });  
 
 // ✅ Start Server
