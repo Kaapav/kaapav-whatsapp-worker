@@ -237,3 +237,9 @@ app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
 });
+
+// ✅ Memory Log
+app.get('/ping', (req, res) => {
+  const mem = process.memoryUsage();
+  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
+});
