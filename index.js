@@ -115,24 +115,16 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
-    // ✅ Push to Tiledesk
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
+   // ✅ Push to Tiledesk
+const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
+const projectId = process.env.TILEDESK_PROJECT_ID; // or hardcode: "686922633c8e640013d7e9ec"
 
 try {
   const tiledeskRes = await axios.post(
-    `https://tiledesk.com/v3/${process.env.TILEDESK_PROJECT_ID}/requests/${requestId}/messages`,
+    `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`,
     {
-      sender: {
-        id: wa_id,
-        name: name || "WhatsApp User"
-      },
       text: text,
-      request_id: requestId,
-      attributes: {
-        source: "whatsapp",
-        lead_type: "auto",
-        auto_imported: true
-      }
+      type: "text"
     },
     {
       headers: {
@@ -145,10 +137,7 @@ try {
 } catch (err) {
   console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
 }
-  } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
-  }
-}
+
 
 // ✅ WhatsApp Send
 async function sendWhatsAppReply(to_wa_id, message_text) {
