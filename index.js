@@ -159,7 +159,6 @@ while (attempt < maxAttempts) {
 
     
 // ✅ Push to Tiledesk
-     const text = message?.text?.body || "";
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
     const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com";
