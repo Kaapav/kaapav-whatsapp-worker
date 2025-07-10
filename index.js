@@ -117,40 +117,35 @@ async function handleGPTandCRM(data) {
 
     // ✅ Push to Tiledesk
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-    try {
-      const tiledeskRes = await axios.post(
-        `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages`,
-        {
-          sender: {
-            id: wa_id,
-            name: name || "WhatsApp User"
-          },
-          text: text,
-          request_id: requestId,
-          attributes: {
-            source: "whatsapp",
-            lead_type: "auto",
-            auto_imported: true
-          }
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
-    } catch (err) {
-      console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
-    }
 
-    // ✅ Auto-reply (optional)
-    await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
-  } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
-  }
+try {
+  const tiledeskRes = await axios.post(
+    `https://tiledesk.com/v3/${process.env.TILEDESK_PROJECT_ID}/requests/${requestId}/messages`,
+    {
+      sender: {
+        id: wa_id,
+        name: name || "WhatsApp User"
+      },
+      text: text,
+      request_id: requestId,
+      attributes: {
+        source: "whatsapp",
+        lead_type: "auto",
+        auto_imported: true
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  console.log("📤 Message pushed to Tiledesk UI ✅", tiledeskRes.status);
+} catch (err) {
+  console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
 }
+
 
 // ✅ WhatsApp Send
 async function sendWhatsAppReply(to_wa_id, message_text) {
