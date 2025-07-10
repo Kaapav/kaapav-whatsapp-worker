@@ -120,7 +120,7 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
-    // ✅ Extract request_id or fallback
+    // ✅ Push to Tiledesk
      const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
    try {
   const tiledeskRes = await axios.post(
@@ -150,6 +150,35 @@ async function handleGPTandCRM(data) {
   console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
 }
 
+
+// ✅ Agent reply to WhatsApp
+app.post('/tiledesk-agent-reply', async (req, res) => {
+  const reply = req.body;
+  const message = reply.text;
+  const wa_id = reply.recipient;
+
+  await sendWhatsAppReply(wa_id, message);
+
+  res.sendStatus(200);
+});
+
+
+
+// ✅ Manual CRM Insert
+(async () => {
+  try {
+    await mongoose.connection.collection("crm_logs").insertOne({
+      name: "Test Manual",
+      phone: "0000000000",
+      message: "Manual Insert",
+      ai_note: "It worked!",
+      timestamp: new Date().toISOString()
+    });
+    console.log("✅ Manual Test Insert Passed");
+  } catch (e) {
+    console.error("❌ Manual Test Failed:", e.message);
+  }
+})();
 // ✅ WhatsApp Send
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
@@ -175,6 +204,17 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
 
+   try {
+    const res = await axios.post(url, {
+      text: replyText,
+      type: "text"
+    }, {
+      headers: {
+        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+     
   // 🔍 DEBUG: Log full payload before sending
   console.log("📤 Sending Auto-reply to Tiledesk:");
   console.log("🔸 URL:", url);
@@ -187,56 +227,12 @@ async function sendTiledeskReply(requestId, replyText) {
     'Content-Type': 'application/json'
   });
 
-  try {
-    const res = await axios.post(url, {
-      text: replyText,
-      type: "text"
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
+ 
     console.log("✅ Auto-reply sent to Tiledesk:", res.status);
   } catch (err) {
-    // 🔥 ERROR LOGGING
     console.error("❌ Tiledesk Reply Error:", err.response?.data || err.message);
   }
 }
-
-
-// ✅ Agent reply to WhatsApp
-app.post('/tiledesk-agent-reply', async (req, res) => {
-  const reply = req.body;
-  const message = reply.text;
-  const wa_id = reply.recipient;
-
-  await sendWhatsAppReply(wa_id, message);
-
-  res.sendStatus(200);
-});
-
-// ✅ Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is live on port ${PORT}`);
-});
-
-// ✅ Manual CRM Insert
-(async () => {
-  try {
-    await mongoose.connection.collection("crm_logs").insertOne({
-      name: "Test Manual",
-      phone: "0000000000",
-      message: "Manual Insert",
-      ai_note: "It worked!",
-      timestamp: new Date().toISOString()
-    });
-    console.log("✅ Manual Test Insert Passed");
-  } catch (e) {
-    console.error("❌ Manual Test Failed:", e.message);
-  }
-})();
-
 // ✅ Memory Log
 app.get('/ping', (req, res) => {
   const mem = process.memoryUsage();
@@ -249,7 +245,8 @@ app.get('/debug', async (req, res) => {
   res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
 });
 
-  app.listen(PORT, () => {
+// ✅ Start Server
+app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
 
