@@ -34,7 +34,7 @@ app.get('/webhooks/whatsapp/cloudapi', (req, res) => {
   }
 });
 
-onst configuration = new Configuration({
+const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY
 });
 const openai = new OpenAIApi(configuration);
