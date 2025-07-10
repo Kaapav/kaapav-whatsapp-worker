@@ -148,10 +148,11 @@ async function handleGPTandCRM(data) {
     }
  // ✅ Push message to Tiledesk Inbox UI
     await axios.post(
-      'https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${wa_id}/messages',
+      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
       {
-        text: text,
-        text: text,
+         sender: wa_id,
+    text: text,
+    attributes: { source: "whatsapp" }
        },
       {
         headers: {
