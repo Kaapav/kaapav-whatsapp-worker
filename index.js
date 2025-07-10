@@ -118,21 +118,6 @@ async function handleGPTandCRM(data) {
 
     if (!message || !wa_id) return;
 
-     // ✅ Push message to Tiledesk Inbox UI
-    await axios.post(
-      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
-      {
-        sender: wa_id,
-        text: text,
-        attributes: { source: "whatsapp" }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TILEDESK_API_KEY}`
-        }
-      }
-    );
-
     // ✅ Declare once
     const text = message?.text?.body || '';
     console.log("🚀 Step 4: Text to GPT = ", text);
@@ -151,10 +136,22 @@ async function handleGPTandCRM(data) {
     };
     console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
 
-    // ✅ Save to MongoDB CRM
-    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-    console.log("✅ CRM Entry Saved:", crmEntry);
-
+ // ✅ Push message to Tiledesk Inbox UI
+    await axios.post(
+      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
+      {
+        sender: wa_id,
+        text: text,
+        attributes: { source: "whatsapp" }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TILEDESK_API_KEY}`
+        }
+      }
+    );
+    console.log("📤 Message pushed to Tiledesk UI");
+    
     // ✅ Auto-reply via Tiledesk (optional)
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
     if (requestId) {
@@ -166,6 +163,9 @@ async function handleGPTandCRM(data) {
   }
 }
 
+  // ✅ Save to MongoDB CRM
+    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
+    console.log("✅ CRM Entry Saved:", crmEntry);
 
     // 📤 Send message back to WhatsApp
 async function sendWhatsAppReply(to_wa_id, message_text) {
@@ -215,10 +215,6 @@ async function sendTiledeskReply(requestId, replyText) {
 
   res.sendStatus(200);
 });
-
-   
-
-    console.log("📤 Message pushed to Tiledesk UI");
 
   } catch (err) {
     console.error("❌ GPT+CRM Error:", err.message);
