@@ -1,4 +1,4 @@
-ilerequire('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -112,19 +112,43 @@ async function handleGPTandCRM(data) {
     const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
 
     console.log("🚀 Step 1: Entered handleGPTandCRM()");
-console.log("🚀 Step 2: Full payload = ", JSON.stringify(data, null, 2));
+    console.log("🚀 Step 2: Full payload = ", JSON.stringify(data, null, 2));
     console.log("🚀 Step 3: message = ", message);
-const text = message?.text?.body || '';
-console.log("🚀 Step 4: Text to GPT = ", text);
-console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
 
     if (!message || !wa_id) return;
 
+    // ✅ Declare once
     const text = message?.text?.body || '';
-    console.log("🧠 GPT Triggered for:", text);
+    console.log("🚀 Step 4: Text to GPT = ", text);
 
-  const aiNote = "Test Tag";
-console.log("🧠 TEMP GPT Note:", aiNote);
+    // ✅ Simulated AI Tagging
+    const aiNote = "Test Tag";
+    console.log("🧠 TEMP GPT Note:", aiNote);
+
+    // ✅ Prepare CRM Entry first, then log it
+    const crmEntry = {
+      name: name || "Unknown",
+      phone: wa_id,
+      message: text,
+      ai_note: aiNote || "No note",
+      timestamp: new Date().toISOString()
+    };
+    console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
+
+    // ✅ Save to MongoDB CRM
+    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
+    console.log("✅ CRM Entry Saved:", crmEntry);
+
+    // ✅ Auto-reply via Tiledesk (optional)
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
+    if (requestId) {
+      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
+    }
+
+  } catch (err) {
+    console.error("❌ GPT+CRM Error:", err.message);
+  }
+}
 
 
     // 📤 Send message back to WhatsApp
@@ -148,45 +172,10 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
   }
 }
 
-    // ✅ Save to CRM (Mongo)
-    const crmEntry = {
-      name: name || "Unknown",
-      phone: wa_id,
-      message: text,
-      ai_note: aiNote || "No note",
-      timestamp: new Date().toISOString()
-    };
-    console.log("🔍 CRM Insertion Attempt:", crmEntry);
-await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-
-    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-    console.log("✅ CRM Entry Saved:", crmEntry);
-
-    // ✅ Send Auto-Reply via Tiledesk
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
-    if (requestId) {
-      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
-    }
-
-  } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
-  }
-}
-
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
-
-  app.post('/tiledesk-agent-reply', async (req, res) => {
-  const reply = req.body;
-  const message = reply.text;
-  const wa_id = reply.recipient; // Or however you saved the phone
-
-  await sendWhatsAppReply(wa_id, message);
-
-  res.sendStatus(200);
-});
-
   try {
+    const axios = require('axios');
     const res = await axios.post(url, {
       text: replyText,
       type: "text"
@@ -202,6 +191,15 @@ async function sendTiledeskReply(requestId, replyText) {
   }
 }
 
+ app.post('/tiledesk-agent-reply', async (req, res) => {
+  const reply = req.body;
+  const message = reply.text;
+  const wa_id = reply.recipient; // Or however you saved the phone
+
+  await sendWhatsAppReply(wa_id, message);
+
+  res.sendStatus(200);
+});
 
     // ✅ Push message to Tiledesk Inbox UI
     await axios.post(
@@ -256,4 +254,6 @@ process.on('unhandledRejection', (reason, p) => {
 app.get('/debug', async (req, res) => {
   const count = await mongoose.connection.collection("crm_logs").countDocuments();
   res.send(`📊 CRM Log Count: ${count}`);
+  res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
+
 });
