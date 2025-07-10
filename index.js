@@ -1,4 +1,5 @@
 require('dotenv').config();
+const axios = require('axios');
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -117,6 +118,21 @@ async function handleGPTandCRM(data) {
 
     if (!message || !wa_id) return;
 
+     // ✅ Push message to Tiledesk Inbox UI
+    await axios.post(
+      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
+      {
+        sender: wa_id,
+        text: text,
+        attributes: { source: "whatsapp" }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TILEDESK_API_KEY}`
+        }
+      }
+    );
+
     // ✅ Declare once
     const text = message?.text?.body || '';
     console.log("🚀 Step 4: Text to GPT = ", text);
@@ -175,7 +191,6 @@ async function sendWhatsAppReply(to_wa_id, message_text) {
 async function sendTiledeskReply(requestId, replyText) {
   const url = `https://tiledesk.com/v3/686922633c8e640013d7e9ec/requests/${requestId}/messages`;
   try {
-    const axios = require('axios');
     const res = await axios.post(url, {
       text: replyText,
       type: "text"
@@ -201,20 +216,7 @@ async function sendTiledeskReply(requestId, replyText) {
   res.sendStatus(200);
 });
 
-    // ✅ Push message to Tiledesk Inbox UI
-    await axios.post(
-      'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
-      {
-        sender: wa_id,
-        text: text,
-        attributes: { source: "whatsapp" }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.TILEDESK_API_KEY}`
-        }
-      }
-    );
+   
 
     console.log("📤 Message pushed to Tiledesk UI");
 
