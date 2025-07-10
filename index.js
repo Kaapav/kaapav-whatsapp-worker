@@ -140,7 +140,12 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     
     console.log("🚀 Step 5: Final CRM Entry = ", crmEntry);
-
+    
+    // ✅ Auto-reply via Tiledesk (optional)
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
+    if (requestId) {
+      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
+    }
  // ✅ Push message to Tiledesk Inbox UI
     await axios.post(
       'https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/686922633c8e640013d7e9ec/messages',
@@ -156,13 +161,6 @@ async function handleGPTandCRM(data) {
       }
     );
     console.log("📤 Message pushed to Tiledesk UI");
-    
-    // ✅ Auto-reply via Tiledesk (optional)
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id;
-    if (requestId) {
-      await sendTiledeskReply(requestId, `Hi ${name || ''} 👋🏼\n\n${aiNote}`);
-    }
-
   } catch (err) {
     console.error("❌ GPT+CRM Error:", err.message);
   }
