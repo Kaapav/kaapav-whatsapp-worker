@@ -97,6 +97,7 @@ async function handleGPTandCRM(data) {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id   = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name    = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
+    
     if (!message || !wa_id) return;
 
     const text    = message?.text?.body || "";
@@ -112,6 +113,9 @@ async function handleGPTandCRM(data) {
     };
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
+
+    console.log("💡 TILEDESK_PROJECT_ID Loaded:", process.env.TILEDESK_PROJECT_ID);
+    const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
 
     /* ---- push to Tiledesk ---- */
     const requestId        = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
