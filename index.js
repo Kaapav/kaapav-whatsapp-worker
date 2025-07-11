@@ -98,13 +98,12 @@ async function handleGPTandCRM(data) {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     const wa_id   = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
     const name    = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
-    
+
     if (!message || !wa_id) return;
 
-    const text    = message?.text?.body || "";
-    const aiNote  = "Test Tag";
+    const text = message?.text?.body || "";
+    const aiNote = "Test Tag";
 
-    /* ---- log to CRM ---- */
     const crmEntry = {
       name: name || "Unknown",
       phone: wa_id,
@@ -115,17 +114,12 @@ async function handleGPTandCRM(data) {
     await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM Entry Saved:", crmEntry);
 
-    console.log("💡 TILEDESK_PROJECT_ID Loaded:", process.env.TILEDESK_PROJECT_ID);
+    // ✅ Safe projectId and requestId
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-
-    /* ---- push to Tiledesk ---- */
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-   console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
-   console.log("💡 Final URL:", TILEDESK_PUSH_URL);
-    const TILEDESK_PUSH_URL =
-  `https://eu-frankfurt-prod-v3.eks.tiledesk.com//v3/${projectId}/requests/${requestId}/messages`;
-   
-    
+    const TILEDESK_PUSH_URL = `https://eu-frankfurt-prod-v3.eks.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
+
+    // ✅ Now it's safe to log
     const payload = {
       sender: {
         id: wa_id,
@@ -139,6 +133,8 @@ async function handleGPTandCRM(data) {
         auto_imported: true
       }
     };
+    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
+    console.log("💡 Final URL:", TILEDESK_PUSH_URL);
 
     const headers = {
       headers: {
@@ -147,10 +143,9 @@ async function handleGPTandCRM(data) {
       }
     };
 
-    /* retry‑safe push (handles 429) */
+    // ✅ Retry-safe push
     let attempt = 0;
     const maxAttempts = 3;
-
     while (attempt < maxAttempts) {
       try {
         const res = await axios.post(TILEDESK_PUSH_URL, payload, headers);
