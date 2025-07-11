@@ -126,12 +126,12 @@ async function handleGPTandCRM(data) {
     const authURL    = "https://api.tiledesk.com/v3/auth/signinAnonymously";
     const TILEDESK_PUSH_URL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
 
-    // 3‑a  obtain a short‑lived anonymous JWT
-    const { data: auth } = await axios.post(authURL, {
-      id_project: projectId,
-      firstname : "WhatsApp"
-    });
-    const jwt = auth.token;                       // begins with "JWT "
+    // 3‑a  Get anonymous JWT for Tiledesk
+const { data: auth } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
+  id_project: projectId,
+  firstname: "WhatsApp"
+});
+const jwt = auth.token;
 
     
      // 3‑b  build message payload
@@ -141,7 +141,9 @@ async function handleGPTandCRM(data) {
       request_id: requestId,
       attributes: {source: "whatsapp",lead_type: "auto",auto_imported: true}
     };
-   const headers = { headers: { Authorization: jwt, "Content-Type": "application/json" } };
+   const headers = { headers: { Authorization: `JWT ${jwt}`,
+    "Content-Type": "application/json" }
+                   };
     
 // 3‑c  retry‑safe POST (handles 429 rate limits)
     for (let attempt = 0; attempt < 3; attempt++) {
