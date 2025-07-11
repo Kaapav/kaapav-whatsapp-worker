@@ -137,17 +137,7 @@ async function handleGPTandCRM(data) {
         "Content-Type": "application/json"
       }
     };
-    try {
-  const res = await axios.post(
-    `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/${projectId}/messages`,
-    payload,
-    headers
-  );
-  console.log("📤 Pushed to Tiledesk UI ✅", res.status);
-} catch (err) {
-  console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
-}
-
+   
     // ✅ JUGAAD: Auto-create conversation fallback + retry-safe POST
     let attempt = 0;
     const maxAttempts = 3;
