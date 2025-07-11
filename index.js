@@ -122,9 +122,9 @@ async function handleGPTandCRM(data) {
 
     // 2️⃣ Tiledesk Push (Auth for Tiledesk)
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId = `whatsapp-${wa_id}`;
+    const requestId =  `support-group-${wa_id}`;
     const authURL = "https://api.tiledesk.com/v3/auth/signinAnonymously";
-    const pushURL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
+    const pushURL = `https://api.tiledesk.com/v3/<project_id>/requests/support-group-919148330066/messages`;
     
     const { data: auth } = await axios.post(authURL, {
       id_project: projectId,
