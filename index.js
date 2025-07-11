@@ -6,6 +6,9 @@ const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const OpenAI   = require("openai");
 console.log("💡 Loaded projectId:", process.env.TILEDESK_PROJECT_ID);
+process.on("uncaughtException", err => {
+  console.error("⛔ Uncaught Exception:", err);
+});
 
 /* ---------- express ---------- */
 const app  = express();
