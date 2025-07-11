@@ -121,7 +121,7 @@ async function handleGPTandCRM(data) {
     /* ---- push to Tiledesk ---- */
     const requestId        = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
    const TILEDESK_PUSH_URL =
-  `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/${process.env.TILEDESK_PROJECT_ID}/messages`;
+  `https://eu-frankfurt-prod-v3.eks.tiledesk.com//v3/${projectId}/requests/${requestId}/messages`;
 
     const payload = {
       sender: {
