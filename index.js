@@ -162,7 +162,8 @@ async function handleGPTandCRM(data) {
     }
   }
 }
-
+  }
+}
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
     await axios.post(
@@ -211,4 +212,4 @@ process.on("unhandledRejection", (reason, p) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server is live on port ${PORT}`);
 });
-console.log("✅ End of file reached");
+console.log("✅ Reached end of file");
