@@ -109,9 +109,8 @@ async function handleGPTandCRM(data) {
 
     const text = message?.text?.body || "";
     const aiNote = "Test Tag";
-    /* ------------------------------------------------------------------------
-       2. Save to your CRM collection
-    ------------------------------------------------------------------------ */
+
+    // 1️⃣ Log to CRM
     await mongoose.connection.collection("crm_logs").insertOne({
       name: name || "Unknown",
       phone: wa_id,
@@ -121,44 +120,48 @@ async function handleGPTandCRM(data) {
     });
     console.log("🚀 CRM log saved for", wa_id);
 
-    //  3. Push the same message into Tiledesk (anonymous‑JWT flow)
-         – 100 % free‑tier friendly, no admin token required //
-    
+    // 2️⃣ Tiledesk Push (anonymous JWT flow)
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId =  data?.entry?.[0]?.changes?.[0]?.value?.request_id|| `whatsapp-${wa_id}`;
-    const authURL    = "https://api.tiledesk.com/v3/auth/signinAnonymously";
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const TILEDESK_PUSH_URL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
 
-    // 3‑a  Get anonymous JWT for Tiledesk
-const { data: auth } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
-  id_project: projectId,
-  firstname: "WhatsApp"
-});
-const jwt = auth.token;
+    // 2a. Get anonymous JWT
+    const { data: auth } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
+      id_project: projectId,
+      firstname: "WhatsApp"
+    });
+    const jwt = auth.token;
 
-    
-     // 3‑b  build message payload
+    // 2b. Prepare payload
     const payload = {
-      sender: {id: wa_id,name: name || "WhatsApp User"},
+      sender: { id: wa_id, name: name || "WhatsApp User" },
       text,
       request_id: requestId,
-      attributes: {source: "whatsapp",lead_type: "auto",auto_imported: true}
+      attributes: {
+        source: "whatsapp",
+        lead_type: "auto",
+        auto_imported: true
+      }
     };
-   const headers = { headers: { Authorization: `JWT ${jwt}`,
-    "Content-Type": "application/json" }
-                   };
-    
-// 3‑c  retry‑safe POST (handles 429 rate limits)
+
+    const headers = {
+      headers: {
+        Authorization: `JWT ${jwt}`,
+        "Content-Type": "application/json"
+      }
+    };
+
+    // 2c. Push with retry (429-safe)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await axios.post(pushURL, payload, headers);
+        const res = await axios.post(TILEDESK_PUSH_URL, payload, headers);
         console.log(`📤 Tiledesk push OK (status ${res.status})`);
         break;
       } catch (err) {
         const status = err.response?.status || 0;
         if (status === 429) {
           const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ rate‑limited, retrying in ${wait} ms`);
+          console.warn(`⚠️ Rate-limited, retrying in ${wait}ms`);
           await new Promise(r => setTimeout(r, wait));
           continue;
         }
@@ -171,6 +174,7 @@ const jwt = auth.token;
     console.error("❌ handleGPTandCRM() fatal:", err.message);
   }
 }
+
 
 /* ---------- WhatsApp replies from agents ---------- */
 async function sendWhatsAppReply(to_wa_id, message_text) {
