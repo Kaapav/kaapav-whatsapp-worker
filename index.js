@@ -164,6 +164,7 @@ async function handleGPTandCRM(data) {
 }
   }
 }
+}
 async function sendWhatsAppReply(to_wa_id, message_text) {
   try {
     await axios.post(
