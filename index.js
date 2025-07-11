@@ -120,19 +120,19 @@ async function handleGPTandCRM(data) {
     });
     console.log("🚀 CRM log saved for", wa_id);
 
-    // 2️⃣ Tiledesk Push (anonymous JWT flow)
+    // 2️⃣ Tiledesk Push (Auth for Tiledesk)
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-    const TILEDESK_PUSH_URL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
-
-    // 2a. Get anonymous JWT
-    const { data: auth } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
+    const requestId = `whatsapp-${wa_id}`;
+    const authURL = "https://api.tiledesk.com/v3/auth/signinAnonymously";
+    const pushURL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
+    
+    const { data: auth } = await axios.post(authURL, {
       id_project: projectId,
       firstname: "WhatsApp"
     });
     const jwt = auth.token;
-
-    // 2b. Prepare payload
+    
+    // 3. Payload
     const payload = {
       sender: { id: wa_id, name: name || "WhatsApp User" },
       text,
@@ -143,7 +143,7 @@ async function handleGPTandCRM(data) {
         auto_imported: true
       }
     };
-console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
+
     const headers = {
       headers: {
         Authorization: `JWT ${jwt}`,
@@ -151,22 +151,25 @@ console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
       }
     };
 
-    // 2c. Push with retry (429-safe)
+    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
+    console.log("💡 Final URL:", pushURL);
+
+    // 4. Retry logic (429 protection)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await axios.post(TILEDESK_PUSH_URL, payload, headers);
+        const res = await axios.post(pushURL, payload, headers);
         console.log(`📤 Tiledesk push OK (status ${res.status})`);
         break;
       } catch (err) {
         const status = err.response?.status || 0;
         if (status === 429) {
           const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ Rate-limited, retrying in ${wait}ms`);
+          console.warn(`⚠️ Rate-limited. Retrying in ${wait}ms...`);
           await new Promise(r => setTimeout(r, wait));
-          continue;
+        } else {
+          console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
+          break;
         }
-        console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
-        break;
       }
     }
 
@@ -174,7 +177,6 @@ console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
     console.error("❌ handleGPTandCRM() fatal:", err.message);
   }
 }
-
 
 /* ---------- WhatsApp replies from agents ---------- */
 async function sendWhatsAppReply(to_wa_id, message_text) {
