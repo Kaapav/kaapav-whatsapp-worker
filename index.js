@@ -116,8 +116,8 @@ async function handleGPTandCRM(data) {
 
     // ✅ Safe projectId and requestId
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-    const TILEDESK_PUSH_URL = `https://eu-frankfurt-prod-v3.eks.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
+    const requestId = `whatsapp-${wa_id}`;
+    const TILEDESK_PUSH_URL = `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/${projectId}/messages`;
 
     // ✅ Now it's safe to log
     const payload = {
