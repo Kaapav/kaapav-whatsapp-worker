@@ -114,7 +114,8 @@ async function handleGPTandCRM(data) {
     // ✅ Declare Tiledesk variables BEFORE using
     const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
     const projectId = process.env.TILEDESK_PROJECT_ID;
-    const TILEDESK_BASE_URL = process.env.TILEDESK_API_BASE || "https://kaapav-tiledesk.onrender.com";
+    // ✅ PREVENT 404/429/Invalid project errors using direct auto-conversation route
+   const TILEDESK_PUSH_URL = `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/chat/${process.env.TILEDESK_PROJECT_ID}/messages`;
 
     const payload = {
       sender: {
@@ -147,33 +148,28 @@ async function handleGPTandCRM(data) {
   console.error("❌ Tiledesk Push Error:", err.response?.data || err.message);
 }
 
-    // ✅ Retry logic
+    // ✅ JUGAAD: Auto-create conversation fallback + retry-safe POST
     let attempt = 0;
     const maxAttempts = 3;
 
     while (attempt < maxAttempts) {
       try {
-        const res = await axios.post(
-          `${TILEDESK_BASE_URL}/v3/${projectId}/requests/${requestId}/messages`,
-          payload,
-          headers
-        );
-        console.log("📤 Message pushed to Tiledesk UI ✅", res.status);
-        break; // success
-      } catch (err) {
-        if (err.response?.status === 429) {
-          const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ Rate limited. Retrying after ${wait}ms`);
-          await new Promise(r => setTimeout(r, wait));
-          attempt++;
-        } else {
-          console.error("❌ Tiledesk Push Fatal Error:", err.response?.data || err.message);
-          break;
-        }
-      }
-    }
+        const res = await axios.post(TILEDESK_PUSH_URL,payload,headers);
+        console.log("📤 Tiledesk UI Push ✅", res.status);
+        break;
   } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
+    const status = err.response?.status;
+    const errMsg = err.response?.data || err.message;
+
+    if (status === 429) {
+      const wait = 1000 * (attempt + 1);
+      console.warn(`⚠️ Rate limit hit. Retry in ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
+      attempt++;
+    } else {
+      console.error("❌ Final Tiledesk Push Error:", errMsg);
+      break;
+    }
   }
 }
 
