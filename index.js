@@ -6,7 +6,6 @@ const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const OpenAI   = require("openai");
 console.log("💡 Loaded projectId:", process.env.TILEDESK_PROJECT_ID);
-console.log("💡 JWT first 10 chars:", process.env.TILEDESK_ADMIN_TOKEN.slice(0, 10));
 
 /* ---------- express ---------- */
 const app  = express();
@@ -120,11 +119,12 @@ async function handleGPTandCRM(data) {
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
 
     /* ---- push to Tiledesk ---- */
-    const requestId        = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
-   const TILEDESK_PUSH_URL =
-  `https://eu-frankfurt-prod-v3.eks.tiledesk.com//v3/${projectId}/requests/${requestId}/messages`;
+    const requestId = data?.entry?.[0]?.changes?.[0]?.value?.request_id || `whatsapp-${wa_id}`;
    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
    console.log("💡 Final URL:", TILEDESK_PUSH_URL);
+    const TILEDESK_PUSH_URL =
+  `https://eu-frankfurt-prod-v3.eks.tiledesk.com//v3/${projectId}/requests/${requestId}/messages`;
+   
     
     const payload = {
       sender: {
