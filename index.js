@@ -106,18 +106,21 @@ async function handleGPTandCRM(data) {
 
     const text = message?.text?.body || "";
     const aiNote = "Test Tag";
-
-    const crmEntry = {
+    /* ------------------------------------------------------------------------
+       2. Save to your CRM collection
+    ------------------------------------------------------------------------ */
+    await mongoose.connection.collection("crm_logs").insertOne({
       name: name || "Unknown",
       phone: wa_id,
       message: text,
       ai_note: aiNote,
       timestamp: new Date().toISOString()
-    };
-    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
-    console.log("🚀 CRM Entry Saved:", crmEntry);
+    });
+    console.log("🚀 CRM log saved for", wa_id);
 
-    // ✅ Safe projectId and requestId
+    //  3. Push the same message into Tiledesk (anonymous‑JWT flow)
+         – 100 % free‑tier friendly, no admin token required //
+    
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
     const requestId =  data?.entry?.[0]?.changes?.[0]?.value?.request_id|| `whatsapp-${wa_id}`;
     const authURL    = "https://api.tiledesk.com/v3/auth/signinAnonymously";
@@ -133,28 +136,13 @@ async function handleGPTandCRM(data) {
     
      // 3‑b  build message payload
     const payload = {
-      sender: {
-        id: wa_id,
-        name: name || "WhatsApp User"
-      },
+      sender: {id: wa_id,name: name || "WhatsApp User"},
       text,
       request_id: requestId,
-      attributes: {
-        source: "whatsapp",
-        lead_type: "auto",
-        auto_imported: true
-      }
+      attributes: {source: "whatsapp",lead_type: "auto",auto_imported: true}
     };
-    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
-    console.log("💡 Final URL:", TILEDESK_PUSH_URL);
-
-    const headers = {
-      headers: {
-        Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
-        "Content-Type": "application/json"
-      }
-    };
-    const headers = { headers: { Authorization: jwt, "Content-Type": "application/json" } };
+   const headers = { headers: { Authorization: jwt, "Content-Type": "application/json" } };
+    
 // 3‑c  retry‑safe POST (handles 429 rate limits)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -221,3 +209,8 @@ process.on("unhandledRejection",  err => console.error("❌ Unhandled Rejection:
 
 /* ---------- start ---------- */
 app.listen(PORT, () => console.log(`🚀 Server is live on port ${PORT}`));
+
+
+
+    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
+    console.log("💡 Final URL:", TILEDESK_PUSH_URL);
