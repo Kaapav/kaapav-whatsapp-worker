@@ -119,10 +119,19 @@ async function handleGPTandCRM(data) {
 
     // ✅ Safe projectId and requestId
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId = `whatsapp-${wa_id}`;
-    const TILEDESK_PUSH_URL = `https://eu-frankfurt-prod-v3.eks.tiledesk.com/api/${projectId}/messages`;
+    const requestId =  data?.entry?.[0]?.changes?.[0]?.value?.request_id|| `whatsapp-${wa_id}`;
+    const authURL    = "https://api.tiledesk.com/v3/auth/signinAnonymously";
+    const TILEDESK_PUSH_URL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
 
-    // ✅ Now it's safe to log
+    // 3‑a  obtain a short‑lived anonymous JWT
+    const { data: auth } = await axios.post(authURL, {
+      id_project: projectId,
+      firstname : "WhatsApp"
+    });
+    const jwt = auth.token;                       // begins with "JWT "
+
+    
+     // 3‑b  build message payload
     const payload = {
       sender: {
         id: wa_id,
@@ -145,30 +154,28 @@ async function handleGPTandCRM(data) {
         "Content-Type": "application/json"
       }
     };
-
-    // ✅ Retry-safe push
-    let attempt = 0;
-    const maxAttempts = 3;
-    while (attempt < maxAttempts) {
+    const headers = { headers: { Authorization: jwt, "Content-Type": "application/json" } };
+// 3‑c  retry‑safe POST (handles 429 rate limits)
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await axios.post(TILEDESK_PUSH_URL, payload, headers);
-        console.log("📤 Tiledesk UI Push ✅", res.status);
+        const res = await axios.post(pushURL, payload, headers);
+        console.log(`📤 Tiledesk push OK (status ${res.status})`);
         break;
       } catch (err) {
-        const status = err.response?.status;
+        const status = err.response?.status || 0;
         if (status === 429) {
           const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ Rate limit hit. Retry in ${wait} ms`);
+          console.warn(`⚠️ rate‑limited, retrying in ${wait} ms`);
           await new Promise(r => setTimeout(r, wait));
-          attempt++;
-        } else {
-          console.error("❌ Final Tiledesk Push Error:", err.response?.data || err.message);
-          break;
+          continue;
         }
+        console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
+        break;
       }
     }
+
   } catch (err) {
-    console.error("❌ GPT+CRM Error:", err.message);
+    console.error("❌ handleGPTandCRM() fatal:", err.message);
   }
 }
 
