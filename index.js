@@ -96,7 +96,7 @@ async function saveToMongo(data) {
 }
 
 console.log("💡 TILEDESK_PROJECT_ID Loaded:", process.env.TILEDESK_PROJECT_ID);
-console.log("💡 JWT First 10:", process.env.TILEDESK_ADMIN_TOKEN.slice(0, 10));
+//console.log("💡 JWT First 10:", process.env.TILEDESK_ADMIN_TOKEN.slice(0, 10));
 
 /* ---------- GPT + CRM + Tiledesk sync ---------- */
 async function handleGPTandCRM(data) {
