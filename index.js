@@ -7,6 +7,8 @@ const mongoose = require("mongoose");
 const OpenAI   = require("openai");
 console.log("💡 Loaded projectId:", process.env.TILEDESK_PROJECT_ID);
 console.log("💡 JWT first 10 chars:", process.env.TILEDESK_ADMIN_TOKEN.slice(0, 10));
+console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
+console.log("💡 Final URL:", TILEDESK_PUSH_URL);
 /* ---------- express ---------- */
 const app  = express();
 const PORT = process.env.PORT || 3000;
