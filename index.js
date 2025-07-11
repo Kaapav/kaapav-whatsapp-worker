@@ -143,7 +143,7 @@ async function handleGPTandCRM(data) {
         auto_imported: true
       }
     };
-
+console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
     const headers = {
       headers: {
         Authorization: `JWT ${jwt}`,
@@ -219,7 +219,3 @@ process.on("unhandledRejection",  err => console.error("❌ Unhandled Rejection:
 /* ---------- start ---------- */
 app.listen(PORT, () => console.log(`🚀 Server is live on port ${PORT}`));
 
-
-
-    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
-    console.log("💡 Final URL:", TILEDESK_PUSH_URL);
