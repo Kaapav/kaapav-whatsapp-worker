@@ -102,39 +102,64 @@ console.log("💡 TILEDESK_PROJECT_ID Loaded:", process.env.TILEDESK_PROJECT_ID)
 async function handleGPTandCRM(data) {
   try {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const wa_id   = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
-    const name    = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
+    const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
+    const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
 
     if (!message || !wa_id) return;
 
     const text = message?.text?.body || "";
     const aiNote = "Test Tag";
 
-    // 1️⃣ Log to CRM
-    await mongoose.connection.collection("crm_logs").insertOne({
+    /* 1. Log to CRM */
+    const crmEntry = {
       name: name || "Unknown",
       phone: wa_id,
       message: text,
       ai_note: aiNote,
       timestamp: new Date().toISOString()
-    });
+    };
+    await mongoose.connection.collection("crm_logs").insertOne(crmEntry);
     console.log("🚀 CRM log saved for", wa_id);
 
-    // 2️⃣ Tiledesk Push (Auth for Tiledesk)
+    /* 2. Prepare Tiledesk push */
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
-    const requestId =  `support-group-${wa_id}`;
-    const authURL = "https://api.tiledesk.com/v3/auth/signinAnonymously";
+    const requestId = `support-group-${wa_id}`;
     const pushURL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
-    
-    const { data: auth } = await axios.post(authURL, {
+
+    /* 3. Sign in anonymously to get JWT */
+    const { data: auth } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
       id_project: projectId,
-      firstname: "WhatsApp"
+      firstname: "Kaapav"
     });
     const jwt = auth.token;
-    
-    // 3. Payload
+
+    /* 4. Try to create the request (safe if already exists) */
+    try {
+      await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
+        request_id: requestId,
+        department: "default"
+      }, {
+        headers: {
+          Authorization: `JWT ${jwt}`,
+          "Content-Type": "application/json"
+        }
+      });
+      console.log("🆕 Tiledesk request created");
+    } catch (err) {
+      if (err.response?.data?.message?.includes("exists")) {
+        console.log("ℹ️ Request already exists, skipping create");
+      } else {
+        console.error("❌ Tiledesk request creation failed:", err.response?.data || err.message);
+        return;
+      }
+    }
+
+    /* 5. Send the message */
     const payload = {
-      sender: { id: wa_id, name: name || "WhatsApp User" },
+      sender: {
+        id: wa_id,
+        name: name || "WhatsApp User"
+      },
       text,
       request_id: requestId,
       attributes: {
@@ -151,10 +176,6 @@ async function handleGPTandCRM(data) {
       }
     };
 
-    console.log("💡 Final Tiledesk Push Payload:", JSON.stringify(payload));
-    console.log("💡 Final URL:", pushURL);
-
-    // 4. Retry logic (429 protection)
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await axios.post(pushURL, payload, headers);
@@ -164,12 +185,12 @@ async function handleGPTandCRM(data) {
         const status = err.response?.status || 0;
         if (status === 429) {
           const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ Rate-limited. Retrying in ${wait}ms...`);
+          console.warn(`⚠️ rate‑limited, retrying in ${wait} ms`);
           await new Promise(r => setTimeout(r, wait));
-        } else {
-          console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
-          break;
+          continue;
         }
+        console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
+        break;
       }
     }
 
