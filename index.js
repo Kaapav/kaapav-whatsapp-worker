@@ -131,22 +131,30 @@ async function handleGPTandCRM(data) {
     const pushURL   = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
 
     // 3. Anonymous JWT auth
-    const authRes = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
+    const { data: authRes } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
       id_project: projectId,
       firstname: "Kaapav"
     });
-    const jwt = authRes.data.token;
+    const jwt = authRes.token;
 // ✅ STEP A — Silently create request if not exists
-await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
+
+    try
+    {
+await axios.post(requestCreateURL, {
   request_id: requestId,
   departmentid: "686922633c8e640013d7e9f8", // ✅ Your Default Department ID
   source: "whatsapp"
 }, {
   headers: {
-    Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
+    Authorization: `JWT ${jwt}`,
     "Content-Type": "application/json"
   }
 });
+       console.log("✅ Tiledesk request ensured");
+} catch (err) {
+  const msg = err.response?.data?.msg || err.message;
+  console.warn("⚠️ Request create skipped:", msg);
+}
   // ✅ STEP B — Now continue to push message  
     const payload = {
       sender: wa_id,
