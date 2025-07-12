@@ -103,7 +103,8 @@ async function handleGPTandCRM(change) {
     const text = msg.text?.body || '';
 
     // Log inbound msg
-    console.log('📥 WA → Tiledesk:', wa_id, text);
+    console.log(`📥 Incoming Msg\n• Name: ${name}\n• WA: ${wa_id}\n• Text: ${text}`);
+
 
     // Track WA for polling
     if (!trackedWA.has(wa_id)) trackedWA.set(wa_id, null);
