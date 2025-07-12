@@ -192,7 +192,10 @@ await axios.post(requestCreateURL, {
         }
       }
     }
-
+ } catch (err) {
+    console.error("❌ handleGPTandCRM() fatal:", err.message);
+  }
+}
   
 
 /* ---------- WhatsApp replies from agents ---------- */
