@@ -103,6 +103,10 @@ async function handleGPTandCRM(change) {
     const msg = change.value?.messages?.[0];
     const contact = change.value?.contacts?.[0];
     if (!msg || !contact) return;
+    console.log("📥 Incoming WhatsApp Message:");
+    console.log("🔸 Name:", name);
+    console.log("🔸 WhatsApp ID:", wa_id);
+    console.log("🔸 Text:", text);
 
     const wa_id = contact.wa_id;
     const name = contact.profile?.name || 'Unknown';
