@@ -10,7 +10,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
-const openai = new (require("openai"))({ apiKey: process.env.OPENAI_API_KEY });
+const OpenAI = require("openai");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /* ---------- Mongo Connect ---------- */
 (async () => {
