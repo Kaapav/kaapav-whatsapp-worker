@@ -129,7 +129,7 @@ async function handleGPTandCRM(data) {
     const requestId = `support-group-${wa_id}`;
     const requestCreateURL = `https://api.tiledesk.com/v3/${projectId}/requests`;
     const pushURL   = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
-
+    const jwt = process.env.TILEDESK_GUEST_JWT;
     // 3. Anonymous JWT auth
     const { data: authRes } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
       id_project: projectId,
