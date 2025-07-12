@@ -29,7 +29,6 @@ import OpenAI from 'openai';
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config(); // use .env only for local testing
 }
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // ---- OpenAI init -------------------------------------------------------------
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
