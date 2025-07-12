@@ -142,7 +142,7 @@ await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
   source: "whatsapp"
 }, {
   headers: {
-    Authorization: `JWT ${jwt}`,
+    Authorization: `Bearer ${process.env.TILEDESK_ADMIN_TOKEN}`,
     "Content-Type": "application/json"
   }
 });
