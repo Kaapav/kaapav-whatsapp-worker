@@ -10,6 +10,21 @@ process.on("uncaughtException", err => {
   console.error("⛔ Uncaught Exception:", err);
 });
 
+/* ---------- GPT / Mongo bootstrap ---------- */
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+(async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    console.log("✅ Connected to MongoDB");
+  } catch (err) {
+    console.error("❌ MongoDB Error:", err.message);
+  }
+})();
+
 /* ---------- express ---------- */
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -32,20 +47,7 @@ app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
   return res.sendStatus(403);
 });
 
-/* ---------- GPT / Mongo bootstrap ---------- */
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-(async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log("✅ Connected to MongoDB");
-  } catch (err) {
-    console.error("❌ MongoDB Error:", err.message);
-  }
-})();
 
 /* ---------- schema ---------- */
 const MessageModel = mongoose.model(
