@@ -3,17 +3,18 @@ require("dotenv").config();
 const axios    = require("axios");
 const express  = require("express");
 const bodyParser = require("body-parser");
-const mongoose = require("mongoose");
 const OpenAI   = require("openai");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 console.log("💡 Loaded projectId:", process.env.TILEDESK_PROJECT_ID);
 process.on("uncaughtException", err => {
   console.error("⛔ Uncaught Exception:", err);
 });
 
 /* ---------- GPT / Mongo bootstrap ---------- */
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const mongoose = require("mongoose");
 
-(async function connectMongo() {
+async function connectMongo() {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
@@ -23,7 +24,10 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   } catch (err) {
     console.error("❌ MongoDB Error:", err.message);
   }
-})();
+}
+
+connectMongo(); // 🔥 Call it here, not using await directly
+
 
 /* ---------- express ---------- */
 const app  = express();
