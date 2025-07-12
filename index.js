@@ -132,10 +132,21 @@ async function handleGPTandCRM(data) {
     // 3. Anonymous JWT auth
     const authRes = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
       id_project: projectId,
-      firstname: "WhatsApp"
+      firstname: "Kaapav"
     });
-    const jwt = auth.token;
-
+    const jwt = authRes.data.token;
+// ✅ STEP A — Silently create request if not exists
+await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
+  request_id: requestId,
+  departmentid: "686922633c8e640013d7e9f8", // ✅ Your Default Department ID
+  source: "whatsapp"
+}, {
+  headers: {
+    Authorization: `JWT ${jwt}`,
+    "Content-Type": "application/json"
+  }
+});
+    
     const payload = {
       sender: wa_id,
       createdBy: wa_id,
