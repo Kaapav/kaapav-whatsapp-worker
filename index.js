@@ -174,11 +174,11 @@ await axios.post(requestCreateURL, {
         "Content-Type": "application/json"
       }
     };
-
+// ✅ Retry-safe message push
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await axios.post(pushURL, payload, headers);
-        console.log(`📤 Tiledesk UI Push OK ✅`, res.status);
+        console.log(`📤 Message pushed OK ✅ Status: ${res.status}`);
         break;
       } catch (err) {
         const status = err.response?.status || 0;
@@ -193,12 +193,7 @@ await axios.post(requestCreateURL, {
       }
     }
 
-  } catch (err) {
-    console.error("❌ handleGPTandCRM() fatal:", err.message);
-  }
-}
-
-   
+  
 
 /* ---------- WhatsApp replies from agents ---------- */
 async function sendWhatsAppReply(to_wa_id, message_text) {
