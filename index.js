@@ -13,7 +13,9 @@ process.on("uncaughtException", err => {
 /* ---------- GPT / Mongo bootstrap ---------- */
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-(async () => {
+const mongoose = require("mongoose");
+
+(async function connectMongo() {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
