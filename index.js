@@ -146,7 +146,7 @@ await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
     "Content-Type": "application/json"
   }
 });
-    
+  // ✅ STEP B — Now continue to push message  
     const payload = {
       sender: wa_id,
       createdBy: wa_id,
