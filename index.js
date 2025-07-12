@@ -51,8 +51,6 @@ app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
   return res.sendStatus(403);
 });
 
-
-
 /* ---------- schema ---------- */
 const MessageModel = mongoose.model(
   "Message",
@@ -134,9 +132,9 @@ async function handleGPTandCRM(data) {
     // 3. Anonymous JWT auth
     const authRes = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
       id_project: projectId,
-      firstname: "Kaapav"
+      firstname: "WhatsApp"
     });
-    const jwt = authRes.data.token;
+    const jwt = auth.token;
 
     const payload = {
       sender: wa_id,
