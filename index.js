@@ -107,12 +107,13 @@ async function handleGPTandCRM(data) {
     // Step B: Push message
     const pushURL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
     const payload = {
-      sender: wa_id,
-      createdBy: wa_id,
+      sender: process.env.TILEDESK_BOT_ID,
+      createdBy: process.env.TILEDESK_BOT_ID,
       text,
       request_id: requestId,
       attributes: {
         source: "whatsapp",
+        wa_id: wa_id, 
         lead_type: "auto",
         auto_imported: true
       }
