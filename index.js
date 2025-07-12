@@ -178,50 +178,7 @@ async function handleGPTandCRM(data) {
   }
 }
 
-    /* 5. Send the message */
-    const payload = {
-      sender: {
-        id: wa_id,
-        name: name || "WhatsApp User"
-      },
-      text,
-      request_id: requestId,
-      attributes: {
-        source: "whatsapp",
-        lead_type: "auto",
-        auto_imported: true
-      }
-    };
-
-    const headers = {
-      headers: {
-        Authorization: `JWT ${jwt}`,
-        "Content-Type": "application/json"
-      }
-    };
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await axios.post(pushURL, payload, headers);
-        console.log(`📤 Tiledesk push OK (status ${res.status})`);
-        break;
-      } catch (err) {
-        const status = err.response?.status || 0;
-        if (status === 429) {
-          const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ rate‑limited, retrying in ${wait} ms`);
-          await new Promise(r => setTimeout(r, wait));
-          continue;
-        }
-        console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
-        break;
-      }
-    }
-
-  } catch (err) {
-    console.error("❌ handleGPTandCRM() fatal:", err.message);
-  }
-}
+   
 
 /* ---------- WhatsApp replies from agents ---------- */
 async function sendWhatsAppReply(to_wa_id, message_text) {
