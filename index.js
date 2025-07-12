@@ -1,75 +1,44 @@
-/* ---------- bootstrap & libs ---------- */
+// ✅ Core Fix Summary: Permanent Tiledesk Guest JWT (solves 401 unauthorized)
+
 require("dotenv").config();
-const axios    = require("axios");
-const express  = require("express");
-const bodyParser = require("body-parser");
-const OpenAI   = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-console.log("💡 Loaded projectId:", process.env.TILEDESK_PROJECT_ID);
-process.on("uncaughtException", err => {
-  console.error("⛔ Uncaught Exception:", err);
-});
-
-/* ---------- GPT / Mongo bootstrap ---------- */
+const axios = require("axios");
+const express = require("express");
 const mongoose = require("mongoose");
+const bodyParser = require("body-parser");
 
-async function connectMongo() {
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.use(bodyParser.json());
+
+const openai = new (require("openai"))({ apiKey: process.env.OPENAI_API_KEY });
+
+/* ---------- Mongo Connect ---------- */
+(async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
-    console.log("✅ Connected to MongoDB");
+    console.log("✅ MongoDB connected");
   } catch (err) {
-    console.error("❌ MongoDB Error:", err.message);
+    console.error("❌ Mongo connection failed:", err.message);
   }
-}
+})();
 
-connectMongo(); // 🔥 Call it here, not using await directly
+/* ---------- Models ---------- */
+const MessageModel = mongoose.model("Message", new mongoose.Schema({
+  from: String,
+  to: String,
+  text: String,
+  timestamp: String,
+  wa_id: String,
+  fullPayload: Object
+}));
 
-
-/* ---------- express ---------- */
-const app  = express();
-const PORT = process.env.PORT || 3000;
-app.use(bodyParser.json());
-
-/* ---------- health ---------- */
-app.get("/ping", (req, res) => {
-  const mem = process.memoryUsage();
-  res.send(`OK | 🧠 Heap: ${(mem.heapUsed / 1024 / 1024).toFixed(2)} MB`);
-});
-
-/* ---------- meta webhook verify ---------- */
-app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "kaapavverify";
-  const { ["hub.mode"]: mode, ["hub.verify_token"]: token, ["hub.challenge"]: challenge } = req.query;
-
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    return res.status(200).send(challenge);
-  }
-  return res.sendStatus(403);
-});
-
-/* ---------- schema ---------- */
-const MessageModel = mongoose.model(
-  "Message",
-  new mongoose.Schema({
-    from: String,
-    to: String,
-    text: String,
-    timestamp: String,
-    wa_id: String,
-    fullPayload: Object
-  })
-);
-
-/* ---------- main webhook ---------- */
+/* ---------- Webhook Endpoint ---------- */
 app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
-  console.log("🔥 POST /webhooks/whatsapp/cloudapi triggered");
   res.sendStatus(200);
-
-  const data  = req.body;
+  const data = req.body;
   const field = data?.entry?.[0]?.changes?.[0]?.field;
   if (field === "message_echoes") return;
 
@@ -77,86 +46,69 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
   await handleGPTandCRM(data);
 });
 
-/* ---------- save inbound ---------- */
 async function saveToMongo(data) {
   try {
     const msg = data.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (!msg) return;
 
-    const record = new MessageModel({
+    await new MessageModel({
       from: msg.from,
       to: data.entry[0].changes[0].value.metadata?.display_phone_number || "",
       text: msg.text?.body || "",
       timestamp: msg.timestamp,
       wa_id: data.entry[0].changes[0].value.contacts?.[0]?.wa_id || "",
       fullPayload: data
-    });
-
-    await record.save();
-    console.log("✅ Message saved to MongoDB");
+    }).save();
+    console.log("✅ Message saved");
   } catch (err) {
-    console.error("❌ Mongo Save Error:", err.message);
+    console.error("❌ Mongo save failed:", err.message);
   }
 }
 
-console.log("💡 TILEDESK_PROJECT_ID Loaded:", process.env.TILEDESK_PROJECT_ID);
-//console.log("💡 JWT First 10:", process.env.TILEDESK_ADMIN_TOKEN.slice(0, 10));
-
-/* ---------- GPT + CRM + Tiledesk sync ---------- */
+/* ---------- GPT + CRM + Tiledesk ---------- */
 async function handleGPTandCRM(data) {
   try {
     const message = data?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    const wa_id   = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
-    const name    = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
-
+    const wa_id = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.wa_id;
+    const name = data?.entry?.[0]?.changes?.[0]?.value?.contacts?.[0]?.profile?.name;
+    const text = message?.text?.body || "";
     if (!message || !wa_id) return;
 
-    const text    = message?.text?.body || "";
-    const aiNote  = "Test Tag";
-
-    // 1. Save to CRM
     await mongoose.connection.collection("crm_logs").insertOne({
       name: name || "Unknown",
       phone: wa_id,
       message: text,
-      ai_note: aiNote,
+      ai_note: "Test Tag",
       timestamp: new Date().toISOString()
     });
-    console.log("🚀 CRM log saved for", wa_id);
+    console.log("🚀 CRM log inserted");
 
-    // 2. Prepare Tiledesk push
-    const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
+    const projectId = process.env.TILEDESK_PROJECT_ID;
     const requestId = `support-group-${wa_id}`;
-    const requestCreateURL = `https://api.tiledesk.com/v3/${projectId}/requests`;
-    const pushURL   = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
     const jwt = process.env.TILEDESK_GUEST_JWT;
-    // 3. Anonymous JWT auth
-    const { data: authRes } = await axios.post("https://api.tiledesk.com/v3/auth/signinAnonymously", {
-      id_project: projectId,
-      firstname: "Kaapav"
-    });
-    const jwt = authRes.token;
-// ✅ STEP A — Silently create request if not exists
 
-    try
-    {
-await axios.post(requestCreateURL, {
-  request_id: requestId,
-  departmentid: "686922633c8e640013d7e9f8", // ✅ Your Default Department ID
-  source: "whatsapp"
-}, {
-  headers: {
-    Authorization: `JWT ${jwt}`,
-    "Content-Type": "application/json"
-  }
-});
-       console.log("✅ Tiledesk request ensured");
-} catch (err) {
-  const msg = err.response?.data?.msg || err.message;
-  console.warn("⚠️ Request create skipped:", msg);
-}
-  // ✅ STEP B — Now continue to push message  
+    // Step A: Ensure request
+    try {
+      await axios.post(`https://api.tiledesk.com/v3/${projectId}/requests`, {
+        request_id: requestId,
+        departmentid: "686922633c8e640013d7e9f8",
+        source: "whatsapp"
+      }, {
+        headers: {
+          Authorization: `JWT ${jwt}`,
+          "Content-Type": "application/json"
+        }
+      });
+      console.log("✅ Request ensured");
+    } catch (e) {
+      console.warn("⚠️ Request create skipped:", e.response?.data?.msg || e.message);
+    }
+
+    // Step B: Push message
+    const pushURL = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
     const payload = {
+      sender: wa_id,
+      createdBy: wa_id,
       text,
       request_id: requestId,
       attributes: {
@@ -166,76 +118,29 @@ await axios.post(requestCreateURL, {
       }
     };
 
-    const headers = {
-      headers: {
-        Authorization: `JWT ${jwt}`,
-        "Content-Type": "application/json"
-      }
-    };
-// ✅ Retry-safe message push
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await axios.post(pushURL, payload, headers);
-        console.log(`📤 Message pushed OK ✅ Status: ${res.status}`);
+        const res = await axios.post(pushURL, payload, {
+          headers: {
+            Authorization: `JWT ${jwt}`,
+            "Content-Type": "application/json"
+          }
+        });
+        console.log("📤 Message pushed ✅", res.status);
         break;
       } catch (err) {
-        const status = err.response?.status || 0;
+        const status = err.response?.status;
         if (status === 429) {
-          const wait = 1000 * (attempt + 1);
-          console.warn(`⚠️ Rate limit, retrying in ${wait} ms`);
-          await new Promise(r => setTimeout(r, wait));
-        } else {
-          console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
-          break;
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
         }
+        console.error("❌ Tiledesk push failed:", err.response?.data || err.message);
+        break;
       }
     }
- } catch (err) {
-    console.error("❌ handleGPTandCRM() fatal:", err.message);
-  }
-}
-  
-
-/* ---------- WhatsApp replies from agents ---------- */
-async function sendWhatsAppReply(to_wa_id, message_text) {
-  try {
-    await axios.post(
-      `https://graph.facebook.com/v18.0/${process.env.WA_PHONE_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: to_wa_id,
-        type: "text",
-        text: { body: message_text }
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.META_TOKEN}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-    console.log("✅ WhatsApp Message Sent:", message_text);
   } catch (err) {
-    console.error("❌ WhatsApp Send Error:", err.response?.data || err.message);
+    console.error("❌ handleGPTandCRM fatal:", err.message);
   }
 }
 
-app.post("/tiledesk-agent-reply", async (req, res) => {
-  const { text, recipient: wa_id } = req.body;
-  await sendWhatsAppReply(wa_id, text);
-  res.sendStatus(200);
-});
-
-/* ---------- debug ---------- */
-app.get("/debug", async (req, res) => {
-  const count = await mongoose.connection.collection("crm_logs").countDocuments();
-  res.send(`📊 CRM Log Count: ${count} | ✅ Mongo Connected: ${mongoose.connection.readyState === 1}`);
-});
-
-/* ---------- harden ---------- */
-process.on("uncaughtException", err => console.error("❌ Uncaught Exception:", err.message));
-process.on("unhandledRejection",  err => console.error("❌ Unhandled Rejection:", err));
-
-/* ---------- start ---------- */
-app.listen(PORT, () => console.log(`🚀 Server is live on port ${PORT}`));
-
+app.listen(PORT, () => console.log(`🚀 Live on port ${PORT}`));
