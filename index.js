@@ -1,5 +1,6 @@
 // ✅ Core Fix Summary: Permanent Tiledesk Guest JWT (solves 401 unauthorized)
-
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 require("dotenv").config();
 const axios = require("axios");
 const express = require("express");
@@ -16,6 +17,11 @@ const chatCompletion = await openai.chat.completions.create({
     { role: "system", content: "You are a helpful assistant." },
     { role: "user", content: "Hi" }
   ],
+});
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 
