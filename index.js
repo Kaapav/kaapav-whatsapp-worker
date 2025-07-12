@@ -85,7 +85,7 @@ async function handleGPTandCRM(data) {
 
     const projectId = process.env.TILEDESK_PROJECT_ID;
     const requestId = `support-group-${wa_id}`;
-    const jwt = process.env.TILEDESK_GUEST_JWT;
+    const jwt = process.env.TILEDESK_BOT_TOKEN;
 
     // Step A: Ensure request
     try {
