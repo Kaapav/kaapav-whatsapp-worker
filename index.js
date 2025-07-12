@@ -157,8 +157,6 @@ await axios.post(requestCreateURL, {
 }
   // ✅ STEP B — Now continue to push message  
     const payload = {
-      sender: wa_id,
-      createdBy: wa_id,
       text,
       request_id: requestId,
       attributes: {
