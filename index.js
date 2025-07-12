@@ -10,8 +10,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 
-const OpenAI = require("openai");
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const chatCompletion = await openai.chat.completions.create({
+  model: "gpt-4",
+  messages: [
+    { role: "system", content: "You are a helpful assistant." },
+    { role: "user", content: "Hi" }
+  ],
+});
+
 
 /* ---------- Mongo Connect ---------- */
 (async () => {
