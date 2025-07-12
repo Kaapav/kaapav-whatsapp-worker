@@ -7,7 +7,8 @@
 // • OpenAI ready (v4 SDK) – swap ai_note logic when needed
 // • CORS enabled for future dashboard access
 // -------------------------------------------------------------
-
+require("dotenv").config();
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 import 'dotenv/config';
 import axios from 'axios';
 import express from 'express';
@@ -24,7 +25,11 @@ import OpenAI from 'openai';
       process.exit(1);
     }
   });
-
+// After (clean fix for Render)
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config(); // use .env only for local testing
+}
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // ---- OpenAI init -------------------------------------------------------------
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
