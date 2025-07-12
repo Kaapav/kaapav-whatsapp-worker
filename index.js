@@ -23,7 +23,8 @@ import OpenAI from "openai";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
+import cors from "cors";
+app.use(cors());
 
 /* ---------- Mongo Connect ---------- */
 (async () => {
