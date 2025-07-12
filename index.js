@@ -127,6 +127,7 @@ async function handleGPTandCRM(data) {
     // 2. Prepare Tiledesk push
     const projectId = process.env.TILEDESK_PROJECT_ID || "686922633c8e640013d7e9ec";
     const requestId = `support-group-${wa_id}`;
+    const requestCreateURL = `https://api.tiledesk.com/v3/${projectId}/requests`;
     const pushURL   = `https://api.tiledesk.com/v3/${projectId}/requests/${requestId}/messages`;
 
     // 3. Anonymous JWT auth
