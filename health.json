@@ -1,0 +1,12 @@
+app.get('/health', async (req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? '🟢 Connected' : '🔴 Disconnected';
+  const crmCount = await mongoose.connection.collection("crm_logs").countDocuments();
+
+  res.json({
+    server: "🟢 Live",
+    mongodb: mongoStatus,
+    crm_entries: crmCount,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
