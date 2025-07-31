@@ -1,1 +1,15 @@
-
+services:
+  - type: web
+    name: kaapav-bot-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node backend/index.js
+    envVars:
+      - key: META_TOKEN
+        value: YOUR_META_TOKEN
+      - key: WA_PHONE_ID
+        value: YOUR_PHONE_ID
+      - key: VERIFY_TOKEN
+        value: kaapavverify
+      - key: PORT
+        value: 3000
