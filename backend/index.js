@@ -73,3 +73,9 @@ const sendMessage = async (to, text) => {
 
 module.exports = { sendMessage };
 
+// kaapav-whatsapp-worker/backend/index.js
+
+setInterval(() => {
+  console.log("♻️ Ping loop active to prevent Render sleep");
+}, 4 * 60 * 1000); // every 4 minutes
+
