@@ -1,3 +1,12 @@
+process.on('uncaughtException', function (err) {
+  if (err.code === 'EADDRINUSE') {
+    console.error('❌ Port already in use. Exiting...');
+    process.exit(1);
+  } else {
+    console.error(err);
+  }
+});
+
 const express = require("express");
 const bodyParser = require("body-parser");
 require("dotenv").config();
