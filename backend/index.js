@@ -52,19 +52,27 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
     res.sendStatus(500);
   }
 });
-
 // ♻️ Anti-sleep loop for Render
 setInterval(() => {
   console.log("♻️ Ping loop active to prevent Render sleep");
-}, 4 * 60 * 1000); // every 4 mins
+}, 4 * 60 * 1000); // every 4 minutes
 
+// ✅ Port setup with fallback
 const PORT = process.env.PORT || 5555;
-app.listen(PORT, () => console.log(`🚀 Bot live on port ${PORT}`));
 
-app.listen(5555, '0.0.0.0', () => {
-  console.log('🚀 Server running on port 5555');
+// ✅ Safe app.listen with error guard (prevents crash loops on EADDRINUSE)
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Bot live on port ${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ Port ${PORT} already in use. Exiting...`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });
 
+// 🛑 Graceful shutdown hook
 process.on('SIGINT', () => {
   console.log('🛑 Gracefully shutting down...');
   process.exit();
