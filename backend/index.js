@@ -1,12 +1,3 @@
-process.on('uncaughtException', function (err) {
-  if (err.code === 'EADDRINUSE') {
-    console.error('❌ Port already in use. Exiting...');
-    process.exit(1);
-  } else {
-    console.error(err);
-  }
-});
-
 const express = require("express");
 const bodyParser = require("body-parser");
 require("dotenv").config();
@@ -15,6 +6,7 @@ const { sendMessage } = require("./sendMessage");
 const app = express();
 app.use(bodyParser.json());
 
+// ✅ WhatsApp webhook verification
 app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
   const mode = req.query["hub.mode"];
@@ -26,6 +18,7 @@ app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
   res.sendStatus(403);
 });
 
+// ✅ WhatsApp message handler
 app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
   try {
     const entry = req.body?.entry?.[0]?.changes?.[0]?.value;
@@ -52,15 +45,16 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
     res.sendStatus(500);
   }
 });
-// ♻️ Anti-sleep loop for Render
-setInterval(() => {
-  console.log("♻️ Ping loop active to prevent Render sleep");
-}, 4 * 60 * 1000); // every 4 minutes
 
-// ✅ Port setup with fallback
+// ♻️ Render Anti-Sleep Loop (only active in Render env)
+if (process.env.RENDER === 'true') {
+  setInterval(() => {
+    console.log("♻️ Ping loop active to prevent Render sleep");
+  }, 4 * 60 * 1000);
+}
+
+// ✅ Unified App Listener
 const PORT = process.env.PORT || 5555;
-
-// ✅ Safe app.listen with error guard (prevents crash loops on EADDRINUSE)
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Bot live on port ${PORT}`);
 }).on('error', (err) => {
@@ -72,7 +66,7 @@ app.listen(PORT, '0.0.0.0', () => {
   }
 });
 
-// 🛑 Graceful shutdown hook
+// 🛑 Graceful shutdown
 process.on('SIGINT', () => {
   console.log('🛑 Gracefully shutting down...');
   process.exit();
