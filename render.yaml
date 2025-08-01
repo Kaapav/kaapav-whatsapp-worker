@@ -7,9 +7,9 @@ services:
     startCommand: cd backend && node index.js
     envVars:
       - key: META_TOKEN
-        value: YOUR_META_TOKEN
+        value: EAAI6dZCuTmYYBPFvZCCpLvNFDbraIIh0knsTnyqiipeePM4IwQbCngJNSZBi90rX28PP8IQk7ZCkiiGZCQIyrZAWA8994RS7Cn76j921q47EJD22pfKcd33wriE6VgZAZCNToA40c0twRtxr1mQPZAEzZAZBF06yvZBi8uwFL9wxfLqNV9ywjVyNwffP40kCU90ZC5kz4jLZAq5HxhMJn6
       - key: WA_PHONE_ID
-        value: YOUR_PHONE_ID
+        value: 1235340811304154
       - key: VERIFY_TOKEN
         value: kaapavverify
       - key: PORT
