@@ -44,38 +44,10 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5555;
-app.listen(PORT, () => console.log(`🚀 Bot live on port ${PORT}`));
-
----
-
-// backend/sendMessage.js
-const axios = require("axios");
-require("dotenv").config();
-
-const sendMessage = async (to, text) => {
-  const url = `https://graph.facebook.com/v18.0/${process.env.WA_PHONE_ID}/messages`;
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to,
-      text: { body: text },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.META_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-};
-
-module.exports = { sendMessage };
-
-// kaapav-whatsapp-worker/backend/index.js
-
+// ♻️ Anti-sleep loop for Render
 setInterval(() => {
   console.log("♻️ Ping loop active to prevent Render sleep");
-}, 4 * 60 * 1000); // every 4 minutes
+}, 4 * 60 * 1000); // every 4 mins
 
+const PORT = process.env.PORT || 5555;
+app.listen(PORT, () => console.log(`🚀 Bot live on port ${PORT}`));
