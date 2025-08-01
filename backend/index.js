@@ -51,3 +51,8 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 5555;
 app.listen(PORT, () => console.log(`🚀 Bot live on port ${PORT}`));
+
+app.listen(5555, '0.0.0.0', () => {
+  console.log('🚀 Server running on port 5555');
+});
+
