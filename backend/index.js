@@ -65,3 +65,7 @@ app.listen(5555, '0.0.0.0', () => {
   console.log('🚀 Server running on port 5555');
 });
 
+process.on('SIGINT', () => {
+  console.log('🛑 Gracefully shutting down...');
+  process.exit();
+});
