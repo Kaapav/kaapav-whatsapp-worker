@@ -12,13 +12,15 @@ app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
+
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     return res.status(200).send(challenge);
   }
+
   res.sendStatus(403);
 });
 
-// ✅ WhatsApp message handler
+// ✅ WhatsApp webhook message receiver
 app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
   try {
     const entry = req.body?.entry?.[0]?.changes?.[0]?.value;
@@ -26,9 +28,9 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
     if (!message) return res.sendStatus(200);
 
     const from = message.from;
-    const text = message.text?.body.toLowerCase() || "";
+    const text = message.text?.body?.toLowerCase() || "";
 
-    let reply = "🤖 Sorry, I didn't understand. Try:\n- Bracelets\n- Offers\n- Track";
+    let reply = "🤖 Sorry, I didn't understand. Try:\n- Bracelet\n- Offers\n- Track";
 
     if (text.includes("bracelet")) {
       reply = "💎 *Bracelets Collection*\nElegance awaits:\nhttps://kaapav.com/bracelets";
@@ -41,33 +43,48 @@ app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
     await sendMessage(from, reply);
     res.sendStatus(200);
   } catch (err) {
-    console.error("Error:", err);
+    console.error("❌ Error handling message:", err);
     res.sendStatus(500);
   }
 });
 
-// ♻️ Render Anti-Sleep Loop (only active in Render env)
-if (process.env.RENDER === 'true') {
-  setInterval(() => {
-    console.log("♻️ Ping loop active to prevent Render sleep");
-  }, 4 * 60 * 1000);
-}
+// ♻️ Anti-sleep loop for Render
+setInterval(() => {
+  console.log("♻️ Ping loop active to prevent Render sleep");
+}, 4 * 60 * 1000); // every 4 minutes
 
-// ✅ Unified App Listener
+// ✅ Port binding logic
 const PORT = process.env.PORT || 5555;
-app.listen(PORT, '0.0.0.0', () => {
+
+// 🚀 Safe listener with global EADDRINUSE shield
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Bot live on port ${PORT}`);
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
+});
+
+// 🚨 If port is already used, exit safely
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
     console.error(`❌ Port ${PORT} already in use. Exiting...`);
     process.exit(1);
   } else {
-    throw err;
+    console.error("❌ Unexpected server error:", err);
+    process.exit(1);
   }
 });
 
-// 🛑 Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('🛑 Gracefully shutting down...');
+// 🛑 Graceful shutdown hook
+process.on("SIGINT", () => {
+  console.log("🛑 Gracefully shutting down...");
   process.exit();
+});
+
+// 🔥 Emergency catch for unhandled port errors
+process.on("uncaughtException", function (err) {
+  if (err.code === "EADDRINUSE") {
+    console.error("❌ Port already in use. Exiting...");
+    process.exit(1);
+  } else {
+    console.error("❌ Uncaught Exception:", err);
+    process.exit(1);
+  }
 });
