@@ -6,7 +6,8 @@
     "start": "node index.js",
       "dev": "vite",
   "build": "vite build",
-  "preview": "vite preview"
+  "preview": "vite preview",
+    "vercel-build": "cd kaapav-chat-ui && npm install && npm run build"
   },
   "engines": {
     "node": "18.x"
