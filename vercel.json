@@ -1,13 +1,13 @@
 {
-  "projects": [
+  "version": 2,
+  "builds": [
     {
       "src": "kaapav-chat-ui/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "kaapav-chat-ui/dist" }
+      "use": "@vercel/static-build"
     }
   ],
   "routes": [
-    { "src": "/$", "dest": "/kaapav-chat-ui/index.html" },
-    { "src": "/(.*)", "dest": "/kaapav-chat-ui/$1" }
+    { "src": "/$", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
