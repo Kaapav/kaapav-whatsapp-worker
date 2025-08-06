@@ -4,9 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-      "dev": "vite",
-  "build": "vite build",
-  "preview": "vite preview",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "vercel-build": "cd kaapav-chat-ui && npm install && npm run build"
   },
   "engines": {
@@ -17,5 +17,9 @@
     "body-parser": "^1.20.2",
     "dotenv": "^16.3.1",
     "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.0.0"
   }
 }
