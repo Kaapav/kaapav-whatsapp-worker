@@ -1,18 +1,25 @@
-
 {
-  "name": "kaapav-chat-ui",
+  "name": "kaapav-backend",
   "version": "1.0.0",
+  "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel-build": "cd kaapav-chat-ui && npm install && npm run build"
+  },
+  "engines": {
+    "node": "18.x"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "axios": "^1.6.8",
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
   },
   "devDependencies": {
-     "@vitejs/plugin-react": "^4.0.0",
-  "vite": "^4.4.9"
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^6.3.5"
   }
 }
