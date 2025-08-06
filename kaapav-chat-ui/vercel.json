@@ -1,7 +1,12 @@
 {
   "version": 2,
+<<<<<<< HEAD
   "buildCommand": "npm run build",
   "outputDirectory": "kaapav-chat-ui/dist",
+=======
+  "buildCommand": "npm run vercel-build",
+  "outputDirectory": "kaapav-chat-ui/dist"
+>>>>>>> 158347074f3cb1487b83d6ae2cedb25ce06b916a
   "routes": [
     { "src": "/$", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/$1" }
