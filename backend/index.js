@@ -1,90 +1,51 @@
-const express = require("express");
+console.log("🧭 Current working directory:", process.cwd());const express = require("express");
 const bodyParser = require("body-parser");
-require("dotenv").config();
-const { sendMessage } = require("./sendMessage");
+require("dotenv").config({ path: __dirname + "/.env" });
+
+const { sendMessage } = require("./sendMessage"); // RELATIVE path — works best
 
 const app = express();
+const PORT = process.env.PORT || 5555;
+
+// Middleware
 app.use(bodyParser.json());
 
-// ✅ WhatsApp webhook verification
-app.get("/webhooks/whatsapp/cloudapi", (req, res) => {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+// Verification route (Webhook GET)
+app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+  if (mode && token === process.env.VERIFY_TOKEN) {
+    console.log("Webhook verified ✅");
     return res.status(200).send(challenge);
+  } else {
+    console.warn("Webhook verification failed ❌");
+    return res.sendStatus(403);
   }
-
-  res.sendStatus(403);
 });
 
-// ✅ WhatsApp webhook message receiver
-app.post("/webhooks/whatsapp/cloudapi", async (req, res) => {
-  try {
-    const entry = req.body?.entry?.[0]?.changes?.[0]?.value;
-    const message = entry?.messages?.[0];
-    if (!message) return res.sendStatus(200);
+// Message handler (Webhook POST)
+app.post("/webhook", async (req, res) => {
+  const entry = req.body.entry?.[0];
+  const message = entry?.changes?.[0]?.value?.messages?.[0];
 
-    const from = message.from;
-    const text = message.text?.body?.toLowerCase() || "";
-
-    let reply = "🤖 Sorry, I didn't understand. Try:\n- Bracelet\n- Offers\n- Track";
-
-    if (text.includes("bracelet")) {
-      reply = "💎 *Bracelets Collection*\nElegance awaits:\nhttps://kaapav.com/bracelets";
-    } else if (text.includes("offer")) {
-      reply = "🎉 *Flat 50% OFF!*\nVisit: https://kaapav.com/offers";
-    } else if (text.includes("track")) {
-      reply = "📦 *Track Order*: https://www.shiprocket.in/shipment-tracking/";
+  if (message) {
+    try {
+      await sendMessage(message);
+    } catch (err) {
+      console.error("❌ Error in sendMessage:", err);
     }
-
-    await sendMessage(from, reply);
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("❌ Error handling message:", err);
-    res.sendStatus(500);
   }
+
+  res.sendStatus(200);
 });
 
-// ♻️ Anti-sleep loop for Render
-setInterval(() => {
-  console.log("♻️ Ping loop active to prevent Render sleep");
-}, 4 * 60 * 1000); // every 4 minutes
+app.get("/", (req, res) => {
+  res.send("🧠 Kaapav WhatsApp Bot is live!");
+});
 
-// ✅ Port binding logic
-const PORT = process.env.PORT || 5555;
-
-// 🚀 Safe listener with global EADDRINUSE shield
-const server = app.listen(PORT, '0.0.0.0', () => {
+// Start server
+app.listen(PORT, () => {
   console.log(`🚀 Bot live on port ${PORT}`);
-});
-
-// 🚨 If port is already used, exit safely
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`❌ Port ${PORT} already in use. Exiting...`);
-    process.exit(1);
-  } else {
-    console.error("❌ Unexpected server error:", err);
-    process.exit(1);
-  }
-});
-
-// 🛑 Graceful shutdown hook
-process.on("SIGINT", () => {
-  console.log("🛑 Gracefully shutting down...");
-  process.exit();
-});
-
-// 🔥 Emergency catch for unhandled port errors
-process.on("uncaughtException", function (err) {
-  if (err.code === "EADDRINUSE") {
-    console.error("❌ Port already in use. Exiting...");
-    process.exit(1);
-  } else {
-    console.error("❌ Uncaught Exception:", err);
-    process.exit(1);
-  }
 });
