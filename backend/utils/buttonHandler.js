@@ -1,132 +1,217 @@
-// utils/buttonHandler.js
-// Centralized mapping of interactive ids -> menu keys (final)
+// File: utils/buttonHandler.js
+// Central router for button IDs & free text (stateless; index passes session + upsertSession)
+const translate = require('./translate');
+const sendMessage = require('./sendMessage');
+const logger = console;
 
-const sendMessage = require("./sendMessage");
-
-// Optional mongoose session model use inside handler — we don't require it, index.js passes upsertSession if needed
-let SessionModel = null;
-try {
-  const mongoose = require("mongoose");
-  const schema = new mongoose.Schema({
-    userId: { type: String, index: true, unique: true },
-    lastMenu: String,
-    meta: Object,
-    updatedAt: { type: Date, default: Date.now }
-  });
-  SessionModel = mongoose.models.Session || mongoose.model("Session", schema);
-} catch (e) {
-  SessionModel = null;
-}
-
-// minimal local cache
-const inMemory = {};
-
-async function saveSessionLocal(userId, patch = {}) {
-  inMemory[userId] = Object.assign({}, inMemory[userId] || {}, patch, { updatedAt: new Date(), userId });
-  if (SessionModel) {
-    try {
-      await SessionModel.updateOne({ userId }, { $set: inMemory[userId] }, { upsert: true });
-    } catch (e) { /* swallow */ }
-  }
-}
-
-/**
- * handleButtonClick(from, buttonId, session, upsertSessionCallback)
- * - from: sender phone
- * - buttonId: string id from interactive reply (list or button)
- * - session: loaded session object (optional)
- * - upsertSessionCallback: function(userId, patch) provided by index.js to persist
- */
-module.exports = async function handleButtonClick(from, buttonId, session = {}, upsertSessionCallback) {
+let io = null;
+function setSocket(socketInstance) {
+  io = socketInstance;
   try {
-    const id = String(buttonId || "").trim().toLowerCase();
-    console.log("🔧 buttonHandler mapping id:", id, "for", from);
+    console.log('buttonHandler.setSocket called.');
+  } catch (_) {}
+}
 
-    // Normalize common variations
-    const map = {
-      browse: "browse",
-      categories: "browse",
-      catalogue: "catalogue",
-      view_catalogue: "catalogue",
-      offers: "offers",
-      check_offers: "offers",
-      payment: "payment",
-      proceed_payment: "payment",
-      track: "track",
-      tracking: "track",
-      review: "review",
-      google_review: "review",
-      chat: "chat",
-      chat_support: "chat",
-      main: "main",
-      main_menu: "main",
-      back_main: "main",
-      "🏠 main menu": "main"
-    };
+// ID map: normalize various variants to canonical actions
+const idMap = {
+  // Main
+  'jewellery_categories': 'JEWELLERY_MENU',
+  'offers_more': 'OFFERS_MENU',
+  'chat_with_us': 'CHAT_MENU',
 
-    // category checks (bracelet, necklace, etc)
-    if (id.includes("bracelet") || id === "bracelets") {
-      await sendMessage.sendCategoryMessage(from, "bracelets");
-      await saveSessionLocal(from, { lastMenu: "bracelets" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "bracelets" });
-      return;
-    }
-    if (id.includes("necklace") || id === "necklaces") {
-      await sendMessage.sendCategoryMessage(from, "necklaces");
-      await saveSessionLocal(from, { lastMenu: "necklaces" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "necklaces" });
-      return;
-    }
-    if (id.includes("earring") || id === "earrings") {
-      await sendMessage.sendCategoryMessage(from, "earrings");
-      await saveSessionLocal(from, { lastMenu: "earrings" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "earrings" });
-      return;
-    }
-    if (id.includes("earring_set") || id.includes("earring sets") || id === "earring_sets") {
-      await sendMessage.sendCategoryMessage(from, "earring_sets");
-      await saveSessionLocal(from, { lastMenu: "earring_sets" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "earring_sets" });
-      return;
-    }
-    if (id.includes("pendant") || id === "pendants") {
-      await sendMessage.sendCategoryMessage(from, "pendants");
-      await saveSessionLocal(from, { lastMenu: "pendants" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "pendants" });
-      return;
-    }
-    if (id.includes("ring") || id === "rings") {
-      await sendMessage.sendCategoryMessage(from, "rings");
-      await saveSessionLocal(from, { lastMenu: "rings" });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "rings" });
-      return;
-    }
+  // Back actions
+  'back_main_menu': 'MAIN_MENU',
+  'back_offers': 'OFFERS_MENU',
+  'back_offers_menu': 'OFFERS_MENU',
 
-    // mapped top-level keys
-    if (map[id]) {
-      const key = map[id];
-      await sendMessage.sendMenu(from, key);
-      await saveSessionLocal(from, { lastMenu: key });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: key });
-      return;
-    }
+  // Payment & orders
+  'payment_orders': 'PAYMENT_MENU',
+  'pay_via_upi': 'PAY_UPI',
+  'pay_via_card': 'PAY_CARD',
+  'track_order': 'TRACK_ORDER',
 
-    // If direct menu key
-    if (sendMessage.MENUS && sendMessage.MENUS[id]) {
-      await sendMessage.sendMenu(from, id);
-      await saveSessionLocal(from, { lastMenu: id });
-      if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: id });
-      return;
-    }
+  // Offers
+  'current_offers': 'OFFERS_NOW',
+  'shop_now': 'SHOP_NOW',
 
-    // fallback: main
-    await sendMessage.sendMenu(from, "main");
-    await saveSessionLocal(from, { lastMenu: "main" });
-    if (upsertSessionCallback) await upsertSessionCallback(from, { lastMenu: "main" });
-    return;
+  // Jewellery deep links
+  'open_website_browse': 'OPEN_WEBSITE',
+  'open_wa_catalog': 'OPEN_CATALOG',
 
-  } catch (err) {
-    console.error("❌ buttonHandler error:", err && err.stack ? err.stack : err);
-    try { await sendMessage.sendMenu(from, "main"); } catch (e) {}
+  // Support
+  'connect_agent': 'CONNECT_AGENT'
+};
+
+// Free-text keyword routing (keep titles ≤20 chars in menus to avoid WA trim)
+const keywords = [
+  { re: /\b(jewell?ery|browse|catalog(?:ue)?)\b/i, action: 'JEWELLERY_MENU' },
+  { re: /\b(offer|discount|deal|sale)\b/i, action: 'OFFERS_MENU' },
+  { re: /\b(pay(?:ment)?|razorpay|upi|card|netbanking)\b/i, action: 'PAYMENT_MENU' },
+  { re: /\b(track(?:ing)?|order\s*status|where.*order)\b/i, action: 'TRACK_ORDER' },
+  { re: /\b(chat|help|support|agent)\b/i, action: 'CHAT_MENU' },
+  { re: /\b(back|main menu|menu|start|hi|hello|hey|namaste)\b/i, action: 'MAIN_MENU' }
+];
+
+function normalizeId(s) {
+  const key = String(s || '').trim();
+  if (!key) return '';
+  const lower = key.toLowerCase();
+  if (idMap[lower]) return idMap[lower];
+  const up = key.toUpperCase();
+  if (idMap[up]) return idMap[up];
+  return '';
+}
+
+async function routeAction(action, from, session, upsertSession) {
+  if (io) try { io.emit('route_action', { from, action, session, ts: Date.now() }); } catch (_) {}
+
+  switch (action) {
+    case 'MAIN_MENU':
+      await sendMessage.sendMainMenu(from, session);
+      await upsertSession(from, { lastMenu: 'main', meta: { greetingSent: true }, lang: session?.lang });
+      return true;
+
+    case 'JEWELLERY_MENU':
+      await sendMessage.sendJewelleryCategoriesMenu(from, session);
+      await upsertSession(from, { lastMenu: 'jewellery_categories', lang: session?.lang });
+      return true;
+
+    case 'OFFERS_MENU':
+      await sendMessage.sendOffersAndMoreMenu(from, session);
+      await upsertSession(from, { lastMenu: 'offers', lang: session?.lang });
+      return true;
+
+    case 'PAYMENT_MENU':
+      await sendMessage.sendPaymentOrdersMenu(from, session);
+      await upsertSession(from, { lastMenu: 'payment', lang: session?.lang });
+      return true;
+
+    case 'OFFERS_NOW':
+      await sendMessage.sendOffersAndMoreMenu(from, session);
+      await upsertSession(from, { lastMenu: 'offers_current', lang: session?.lang });
+      return true;
+
+    case 'SHOP_NOW':
+      await sendMessage.sendText(from, '🛒 Opening shop link...');
+      await sendMessage.sendOffersAndMoreMenu(from, session);
+      return true;
+
+    case 'OPEN_WEBSITE':
+      await sendMessage.sendWebsiteCta(from, session);
+      return true;
+
+    case 'OPEN_CATALOG':
+      await sendMessage.sendWhatsappCatalogCta(from, session);
+      return true;
+
+    case 'PAY_UPI':
+      await sendMessage.sendText(from, '💳 UPI Payment Link coming up…');
+      await sendMessage.sendPaymentOrdersMenu(from, session);
+      return true;
+
+    case 'PAY_CARD':
+      await sendMessage.sendText(from, '💳 Card/Netbanking link coming up…');
+      await sendMessage.sendPaymentOrdersMenu(from, session);
+      return true;
+
+    case 'TRACK_ORDER':
+      await sendMessage.sendTrackOrderCta(from, session);
+      await upsertSession(from, { lastMenu: 'payment', lang: session?.lang });
+      return true;
+
+    case 'CHAT_MENU':
+      await sendMessage.sendChatWithUsCta(from, session);
+      await upsertSession(from, { lastMenu: 'chat', lang: session?.lang });
+      return true;
+
+    case 'CONNECT_AGENT':
+      await sendMessage.sendConnectAgentText(from, session);
+      return true;
+
+    default:
+      return false;
   }
+}
+
+async function handleIncomingWebhook(body) {
+  try {
+    logger.log("📩 Incoming webhook:", JSON.stringify(body));
+
+    const change = body?.entry?.[0]?.changes?.[0];
+    const msg = change?.value?.messages?.[0];
+    const from = msg?.from;
+    if (!msg || !from) return false;
+
+    if (msg.type === "text") {
+      logger.log(`💬 Message from ${from}: ${msg.text?.body}`);
+    }
+    if (msg.type === "interactive" && msg.interactive?.button_reply) {
+      logger.log(`🔘 Button click from ${from}: ${msg.interactive.button_reply.id}`);
+    }
+
+    if (msg.type === 'interactive') {
+      const reply = msg.interactive?.button_reply || msg.interactive?.list_reply || {};
+      const raw = reply?.id || reply?.title || reply?.row_id || '';
+      const action = normalizeId(raw);
+      if (!action) return false;
+      await routeAction(action, from, {}, async () => {});
+      if (io) try { io.emit('button_pressed', { from, id: raw, ts: Date.now() }); } catch (_) {}
+      return true;
+    }
+
+    if (msg.type === 'text') {
+      const original = msg.text?.body || '';
+      let translated = original;
+      let detectedLang = 'en';
+
+      try {
+        const t = await translate.toEnglish(original);
+        translated = t?.translated || translated;
+        detectedLang = t?.detectedLang || detectedLang;
+      } catch (_) {}
+
+      let action = 'MAIN_MENU';
+      for (const k of keywords) {
+        if (k.re.test(translated)) {
+          action = k.action;
+          break;
+        }
+      }
+
+      if (io) try { io.emit('text_routed', { from, original, translated, detectedLang, action, ts: Date.now() }); } catch (_) {}
+
+      await routeAction(action, from, { lang: detectedLang }, async () => {});
+      return true;
+    }
+
+    return false;
+  } catch (e) {
+    console.warn('buttonHandler.handleIncomingWebhook error:', e.message);
+    return false;
+  }
+}
+
+
+async function handleButtonClick(from, payload, session = {}, upsertSession = async () => {}) {
+  if (!from) return false;
+  const raw = String(payload || '').trim();
+
+  const idAction = normalizeId(raw);
+  if (idAction) {
+    return routeAction(idAction, from, session, upsertSession);
+  }
+
+  for (const k of keywords) {
+    if (k.re.test(raw)) {
+      return routeAction(k.action, from, session, upsertSession);
+    }
+  }
+
+  return routeAction('MAIN_MENU', from, session, upsertSession);
+}
+
+module.exports = {
+  handleButtonClick,
+  handleIncomingWebhook,
+  setSocket,
 };
