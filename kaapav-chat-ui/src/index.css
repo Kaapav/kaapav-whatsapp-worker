@@ -1,6 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+/* Global body styling */
 body {
+  @apply bg-white text-black;
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #fff0f5;
+  font-family: "Inter", sans-serif;
+}
+
+/* Luxury headers */
+h1, h2, h3, h4, h5 {
+  font-family: "Playfair Display", serif;
+  letter-spacing: 0.5px;
+  color: #111;
+}
+
+/* Gold utility class */
+.gold-text {
+  color: #facc15;
+}
+.gold-bg {
+  background-color: #facc15;
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f9f9f9;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #facc15;
+  border-radius: 6px;
 }
