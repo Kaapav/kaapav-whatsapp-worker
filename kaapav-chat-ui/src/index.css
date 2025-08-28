@@ -19,8 +19,9 @@ h1, h2, h3, h4, h5 {
 
 /* Gold utility class */
 .gold-text {
-  color: #facc15;
+  color: #facc15; /* luxury gold */
 }
+
 .gold-bg {
   background-color: #facc15;
 }
