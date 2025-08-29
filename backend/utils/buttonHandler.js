@@ -48,6 +48,11 @@ const idMap = {
   'track_order': 'TRACK_ORDER',
   'chat_now': 'CHAT_NOW',
 
+     // ⭐ New IDs
+  'social_menu': 'SOCIAL_MENU',
+  'open_facebook': 'OPEN_FACEBOOK',
+  'open_instagram': 'OPEN_INSTAGRAM',
+  
   // Listing (optional)
   'show_list': 'SHOW_LIST',
 };
@@ -72,6 +77,11 @@ const keywords = [
   { re: /\b(razorpay)\b/i, action: "PAY_RAZORPAY" },
   { re: /\b(track|tracking|order status|where.*order)\b/i, action: "TRACK_ORDER" },
   { re: /\b(chat now|talk|connect)\b/i, action: "CHAT_NOW" },
+
+   // ⭐ Keywords for socials
+  { re: /\b(facebook|fb)\b/i, action: "OPEN_FACEBOOK" },
+  { re: /\b(insta|instagram)\b/i, action: "OPEN_INSTAGRAM" },
+  { re: /\b(social)\b/i, action: "SOCIAL_MENU" },
 ];
 
 
@@ -117,6 +127,12 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await upsertSession(from, { lastMenu: "chat" });
         return true;
 
+         // ⭐ New submenu
+      case "SOCIAL_MENU":
+        await sendMessage.sendSocialMenu(from, session);
+        await upsertSession(from, { lastMenu: "social" });
+        return true;
+
       // ---- Submenu Link Actions (Jugaad) ----
       case "OPEN_WEBSITE":
         await sendMessage.sendSimpleInfo(from, `🌐 Browse on website:\n${sendMessage.LINKS.website}`);
@@ -155,6 +171,15 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await sendMessage.sendSimpleInfo(from, `💬 Chat with us:\n${sendMessage.LINKS.waMeChat}`);
         return true;
 
+        // ⭐ Social direct links
+      case "OPEN_FACEBOOK":
+        await sendMessage.sendSimpleInfo(from, `📘 Visit our Facebook:\n${sendMessage.LINKS.facebook}`);
+        return true;
+
+      case "OPEN_INSTAGRAM":
+        await sendMessage.sendSimpleInfo(from, `📸 Follow us on Instagram:\n${sendMessage.LINKS.instagram}`);
+        return true;
+        
       default:
         return false;
     }
