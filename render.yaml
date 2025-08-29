@@ -6,11 +6,25 @@ services:
     buildCommand: cd backend && npm install
     startCommand: cd backend && node index.js
     envVars:
+      - key: NODE_VERSION
+        value: 22
       - key: META_TOKEN
-        value: EAAI6dZCuTmYYBPFvZCCpLvNFDbraIIh0knsTnyqiipeePM4IwQbCngJNSZBi90rX28PP8IQk7ZCkiiGZCQIyrZAWA8994RS7Cn76j921q47EJD22pfKcd33wriE6VgZAZCNToA40c0twRtxr1mQPZAEzZAZBF06yvZBi8uwFL9wxfLqNV9ywjVyNwffP40kCU90ZC5kz4jLZAq5HxhMJn6
-      - key: WA_PHONE_ID
-        value: 1235340811304154
+        value: EAAI6dZCuTmYYBPFs5zVM7jPrDTAsHsyjHsl2d6ZAc5do7BpnwwydjXL6L7tvuIFSauTZBxoCogmKvtJWKwDkofXjI0mZAbPkLQ7fwsBMgG3XioKA1MqePVYK6h8P6IZCFBow6qHpw6nZC7zPH3ITdnaWrxOj4ZBORhjPmj9Yxlz0Kej6UFHOS4sbVTItWllYrPcZAgZDZD
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        value: 745230991999571
       - key: VERIFY_TOKEN
         value: kaapavverify
       - key: PORT
         value: 5555
+      - key: MONGO_URI
+        value: mongodb+srv://kaapavin:Rocket064@cluster0.usauxbv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+      - key: BASE_URL
+        value: https://kaapav-whatsapp-worker.onrender.com
+      - key: KEEPALIVE_INTERVAL_MS
+        value: 300000
+      - key: SESSION_TTL_MIN
+        value: 0
+      - key: GRAPH_API_VERSION
+        value: v17.0
+      - key: WA_PHONE_ID
+        value: 745230991999571
