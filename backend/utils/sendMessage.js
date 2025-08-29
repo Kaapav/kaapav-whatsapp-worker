@@ -226,10 +226,7 @@ async function sendJewelleryCategoriesMenu(to, lang = 'en') {
     lang
   );
 
-  const footer = await fromEnglish(
-    "KAAPAV Elegance ✨ Visit our site for more",
-    lang
-  );
+  const footer = await fromEnglish("🌐 kaapav.com | 📱 Catalog", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -258,10 +255,7 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
     lang
   );
 
-  const footer = await fromEnglish(
-    "KAAPAV Offers ✨ Luxury made affordable",
-    lang
-  );
+  const footer = await fromEnglish("🛍️ Bestsellers | 👑 KAAPAV", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -282,6 +276,7 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
   };
   return sendAPIRequest(payload);
 }
+
 // ======== PAYMENT MENU ========
 async function sendPaymentOrdersMenu(to, lang = 'en') {
   const body = await fromEnglish(
@@ -292,10 +287,7 @@ async function sendPaymentOrdersMenu(to, lang = 'en') {
     lang
   );
 
-  const footer = await fromEnglish(
-    "💖 Thank you for choosing KAAPAV ✨",
-    lang
-  );
+  const footer = await fromEnglish("💖 Thanks for shopping with KAAPAV", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -317,7 +309,6 @@ async function sendPaymentOrdersMenu(to, lang = 'en') {
   return sendAPIRequest(payload);
 }
 
-
 // ======== TRACK ORDER MENU ========
 async function sendTrackOrderCta(to, lang = 'en') {
   const body = await fromEnglish(
@@ -325,18 +316,16 @@ async function sendTrackOrderCta(to, lang = 'en') {
     lang
   );
 
-  const footer = await fromEnglish(
-    "Track orders easily ✨ We’re here to help",
-    lang
-  );
+  const footer = await fromEnglish("🔍 Track via Shiprocket | 💬 Help?", lang);
 
   return sendReplyButtons(
     to,
     body,
-    [{ id: "MAIN_MENU", title: await fromEnglish("⬅️ Home", lang) } ],
+    [{ id: "MAIN_MENU", title: await fromEnglish("⬅️ Home", lang) }],
     footer
   );
 }
+
 
 // ======== CHAT MENU ========
 async function sendChatWithUsCta(to, lang = 'en') {
