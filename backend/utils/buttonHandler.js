@@ -119,12 +119,15 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await upsertSession(from, { lastMenu: "payment_track" });
         return true;
       
+      case "PAYMENT_MENU":
       case "PAY_NOW":
-  await sendMessage.sendSimpleInfo(from, `🏦 Pay securely via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`
-  );
-  return true;
-  
-      case "CHAT_MENU":
+      await sendMessage.sendSimpleInfo(
+    from,
+    `🏦 Pay securely via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`);
+    await upsertSession(from, { lastMenu: "payment" });
+    return true;
+
+        case "CHAT_MENU":
         await sendMessage.sendChatWithUsCta(from, session);
         await upsertSession(from, { lastMenu: "chat" });
         return true;
