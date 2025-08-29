@@ -1,3 +1,4 @@
+import ChatPanel from "./components/ChatPanel";
 import React, { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import AdminWhatsAppPanel from "./AdminWhatsAppPanel.jsx";
