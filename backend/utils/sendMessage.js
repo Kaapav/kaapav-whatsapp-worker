@@ -182,7 +182,7 @@ async function sendMainMenu(to, lang = 'en') {
   );
 
   const footer = await fromEnglish(
-    "Choose an option below 👇\n🛍️ Explore Elegance, Exclusively with KAAPAV.",
+    "Choose an option below 👇\n🛍️ Explore Elegance with KAAPAV.",
     lang
   );
 
