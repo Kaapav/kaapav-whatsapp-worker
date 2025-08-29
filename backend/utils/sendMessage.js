@@ -307,6 +307,23 @@ async function sendPaymentOrdersMenu(to, lang = 'en') {
   return sendAPIRequest(payload);
 }
 
+// ======== TRACK ORDER MENU ========
+async function sendTrackOrderCta(to, lang = 'en') {
+  const body = await fromEnglish(
+    "📦 *Track Your Order – KAAPAV Jewellery* 📦\n\n✨ Stay updated on your sparkle’s journey ✨🚚",
+    lang
+  );
+
+  const footer = await fromEnglish("🔍 Track via Shiprocket | 💬 Help?", lang);
+
+  return sendReplyButtons(
+    to,
+    body,
+    [{ id: "MAIN_MENU", title: await fromEnglish("⬅️ Home", lang) }],
+    footer
+  );
+}
+
 // ======== CHAT MENU ========
 async function sendChatWithUsCta(to, lang = 'en') {
   const body = await fromEnglish(
