@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "buildCommand": "cd kaapav-chat-ui && npm install && npm run build",
+  "outputDirectory": "kaapav-chat-ui/dist",
+  "routes": [
+    { "src": "/$", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ],
+  "github": {
+    "enabled": true,
+    "silent": false,
+    "autoJobCancelation": false
+  }
+}
