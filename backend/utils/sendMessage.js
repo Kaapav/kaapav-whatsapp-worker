@@ -282,8 +282,41 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
   };
   return sendAPIRequest(payload);
 }
+// ======== PAYMENT MENU ========
+async function sendPaymentOrdersMenu(to, lang = 'en') {
+  const body = await fromEnglish(
+    "💳 *Proceed to Payment – KAAPAV Jewellery* 💳\n\n✨ Complete your sparkle with a secure checkout ✨\n\n1️⃣ UPI: " + LINKS.upi +
+    "\n2️⃣ Card/Netbanking: " + LINKS.card +
+    "\n3️⃣ Razorpay: " + LINKS.razorpay +
+    "\n\n🚫 Cash on Delivery not available.",
+    lang
+  );
 
-// ======== PAYMENT MENU ======== ✅ Already fine (kept same)
+  const footer = await fromEnglish(
+    "💖 Thank you for choosing KAAPAV ✨",
+    lang
+  );
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: body },
+      footer: { text: footer },
+      action: {
+        buttons: [
+          { type: "reply", reply: { id: "PAY_UPI", title: await fromEnglish("💳 UPI", lang) } },
+          { type: "reply", reply: { id: "PAY_CARD", title: await fromEnglish("🏦 Card", lang) } },
+          { type: "reply", reply: { id: "MAIN_MENU", title: await fromEnglish("⬅️ Home", lang) } },
+        ],
+      },
+    },
+  };
+  return sendAPIRequest(payload);
+}
+
 
 // ======== TRACK ORDER MENU ========
 async function sendTrackOrderCta(to, lang = 'en') {
