@@ -61,7 +61,7 @@ const keywords = [
   // Menus
   { re: /\b(browse|shop|website|site)\b/i, action: "JEWELLERY_MENU" },
   { re: /\b(offer|discount|deal|sale)\b/i, action: "OFFERS_MENU" },
-  { re: /\b(pay(?:ment)?|upi|card|netbanking|debit|credit)\b/i, action: "PAYMENT_MENU" },
+  { re: /\b(payment|payment menu)\b/i, action: "PAYMENT_MENU" },
   { re: /\b(chat|help|support|agent)\b/i, action: "CHAT_MENU" },
   { re: /\b(back|main menu|menu|start|hi|hello|hey|namaste)\b/i, action: "MAIN_MENU" },
 
