@@ -80,7 +80,7 @@ async function _postToN8n(event, payload) {
   try {
     await axios.post(N8N_WEBHOOK_URL, { event, payload, ts: Date.now() }, { timeout: 15000 });
   } catch (e) {
-    console.warn('[sendMessage] n8n post failed:', e.message);
+    console.warn('[sendMessage] n8n post failed (ignored):', e.message);
   }
 }
 
