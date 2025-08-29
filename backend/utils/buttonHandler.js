@@ -40,9 +40,7 @@ const idMap = {
   'open_bestsellers': 'OPEN_BESTSELLERS',
 
   // Payments
-  'pay_upi': 'PAY_UPI',
-  'pay_card': 'PAY_CARD',
-  'pay_razorpay': 'PAY_RAZORPAY',
+  'payment_menu': 'PAYMENT_MENU',
 
   // Tracking & support
   'track_order': 'TRACK_ORDER',
@@ -72,9 +70,7 @@ const keywords = [
   { re: /\b(list|categories|category list|full list)\b/i, action: "SHOW_LIST" },
   { re: /\b(website|shop now)\b/i, action: "OPEN_WEBSITE" },
   { re: /\b(catalog|catalogue|whatsapp catalog)\b/i, action: "OPEN_CATALOG" },
-  { re: /\b(upi|gpay|google pay|phonepe|paytm)\b/i, action: "PAY_UPI" },
-  { re: /\b(card|netbanking|debit|credit)\b/i, action: "PAY_CARD" },
-  { re: /\b(razorpay)\b/i, action: "PAY_RAZORPAY" },
+  { re: /\b(upi|card|netbanking|debit|credit)\b/i, action: "PAYMENT_MENU" },
   { re: /\b(track|tracking|order status|where.*order)\b/i, action: "TRACK_ORDER" },
   { re: /\b(chat now|talk|connect)\b/i, action: "CHAT_NOW" },
 
@@ -117,9 +113,10 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await upsertSession(from, { lastMenu: "offers" });
         return true;
 
-      case "PAYMENT_MENU":
-        await sendMessage.sendPaymentOrdersMenu(from, session);
-        await upsertSession(from, { lastMenu: "payment" });
+     case "PAYMENT_MENU":
+        // 🔥 updated to call the combined Payment+Track submenu
+        await sendMessage.sendPaymentAndTrackMenu(from, session);
+        await upsertSession(from, { lastMenu: "payment_track" });
         return true;
 
       case "CHAT_MENU":
@@ -151,19 +148,11 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await sendMessage.sendSimpleInfo(from, `📱 WhatsApp Catalogue:\n${sendMessage.LINKS.whatsappCatalog}`);
         return true;
 
-      case "PAY_UPI":
-        await sendMessage.sendSimpleInfo(from, `💳 Pay via UPI:\n${sendMessage.LINKS.upi}`);
+     case "PAYMENT_MENU":
+        await sendMessage.sendSimpleInfo(from, `🏦 Pay via UPI/Card/Netbanking:\n${sendMessage.LINKS.card}`);
         return true;
 
-      case "PAY_CARD":
-        await sendMessage.sendSimpleInfo(from, `🏦 Pay via Card/Netbanking:\n${sendMessage.LINKS.card}`);
-        return true;
-
-      case "PAY_RAZORPAY":
-        await sendMessage.sendSimpleInfo(from, `🔗 Pay via Razorpay:\n${sendMessage.LINKS.razorpay}`);
-        return true;
-
-      case "TRACK_ORDER":
+     case "TRACK_ORDER":
         await sendMessage.sendSimpleInfo(from, `📦 Track your order here:\n${sendMessage.LINKS.shiprocket}`);
         return true;
 
