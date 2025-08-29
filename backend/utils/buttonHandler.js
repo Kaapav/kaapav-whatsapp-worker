@@ -70,7 +70,7 @@ const keywords = [
   { re: /\b(list|categories|category list|full list)\b/i, action: "SHOW_LIST" },
   { re: /\b(website|shop now)\b/i, action: "OPEN_WEBSITE" },
   { re: /\b(catalog|catalogue|whatsapp catalog)\b/i, action: "OPEN_CATALOG" },
-  { re: /\b(upi|card|netbanking|debit|credit)\b/i, action: "PAY_NOW" }
+  { re: /\b(upi|card|netbanking|debit|credit)\b/i, action: "PAY_NOW" },
   { re: /\b(track|tracking|order status|where.*order)\b/i, action: "TRACK_ORDER" },
   { re: /\b(chat now|talk|connect)\b/i, action: "CHAT_NOW" },
 
