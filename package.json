@@ -1,0 +1,5 @@
+{
+  "name": "kaapav-whatsapp-worker",
+  "private": true,
+  "workspaces": ["backend", "kaapav-chat-ui"]
+}
