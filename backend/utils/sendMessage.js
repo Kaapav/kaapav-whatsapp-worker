@@ -222,16 +222,16 @@ async function sendSimpleInfo(to, text, lang = "en") {
 // ======== JEWELLERY MENU ========
 async function sendJewelleryCategoriesMenu(to, lang = 'en') {
   const body = await fromEnglish(
-    "💎 *Explore the World of KAAPAV Elegance* 💎\n\n✨ Carefully handcrafted, designed to shine ✨\n👑 Jewellery that defines luxury & grace.",
-    lang
-  );
-
-  const footer = await fromEnglish(
+    "💎 *Explore the World of KAAPAV Elegance* 💎\n\n" +
+    "✨ Carefully handcrafted, designed to shine ✨\n" +
+    "👑 Jewellery that defines luxury & grace.\n\n" +
     "🌐 Website: https://www.kaapav.com\n" +
     "🛍️ Bestsellers: https://www.kaapav.com/shop/category/all-jewellery-12?tags=16\n" +
     "📱 WhatsApp Catalog: https://wa.me/c/919148330016",
     lang
   );
+
+  const footer = await fromEnglish("✨ Discover timeless beauty ✨", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -256,14 +256,14 @@ async function sendJewelleryCategoriesMenu(to, lang = 'en') {
 // ======== OFFERS MENU ========
 async function sendOffersAndMoreMenu(to, lang = 'en') {
   const body = await fromEnglish(
-    "💫 *Exclusive Offers Just for You!* 💫\n\n🎉 Luxury jewellery at *Flat 50% OFF* ✨\n🚚 Free Shipping above ₹499 💝",
+    "💫 *Exclusive Offers Just for You!* 💫\n\n" +
+    "🎉 Luxury jewellery at *Flat 50% OFF* ✨\n" +
+    "🚚 Free Shipping above ₹499 💝\n\n" +
+    "🛍️ Bestsellers: " + LINKS.offersBestsellers,
     lang
   );
 
-  const footer = await fromEnglish(
-    "🛍️ Bestsellers: " + LINKS.offersBestsellers + "\n👑 KAAPAV – Elegance meets Affordability.",
-    lang
-  );
+  const footer = await fromEnglish("👑 KAAPAV — Elegance & Value", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -288,17 +288,16 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
 // ======== PAYMENT MENU ========
 async function sendPaymentOrdersMenu(to, lang = 'en') {
   const body = await fromEnglish(
-    "💳 *Proceed to Payment – KAAPAV Jewellery* 💳\n\n✨ Complete your sparkle with a secure checkout ✨\n\n1️⃣ UPI: " + LINKS.upi +
+    "💳 *Proceed to Payment – KAAPAV Jewellery* 💳\n\n" +
+    "✨ Complete your sparkle with a secure checkout ✨\n\n" +
+    "1️⃣ UPI: " + LINKS.upi +
     "\n2️⃣ Card/Netbanking: " + LINKS.card +
     "\n3️⃣ Razorpay: " + LINKS.razorpay +
     "\n\n🚫 Cash on Delivery not available.",
     lang
   );
 
-  const footer = await fromEnglish(
-    "💖 Thank you for shopping with KAAPAV – Where Elegance Meets You 👑💎",
-    lang
-  );
+  const footer = await fromEnglish("💖 Thank you for choosing KAAPAV", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -323,14 +322,13 @@ async function sendPaymentOrdersMenu(to, lang = 'en') {
 // ======== TRACK ORDER MENU ========
 async function sendTrackOrderCta(to, lang = 'en') {
   const body = await fromEnglish(
-    "📦 *Track Your Order – KAAPAV Jewellery* 📦\n\n✨ Stay updated on your sparkle’s journey ✨🚚",
+    "📦 *Track Your Order – KAAPAV Jewellery* 📦\n\n" +
+    "✨ Stay updated on your sparkle’s journey ✨🚚\n\n" +
+    "🔍 Track here: " + LINKS.shiprocket,
     lang
   );
 
-  const footer = await fromEnglish(
-    "🔍 Track here: " + LINKS.shiprocket + "\n💬 Need help? We’re just a message away 💖👑",
-    lang
-  );
+  const footer = await fromEnglish("💖 We’re always here for you 👑", lang);
 
   return sendReplyButtons(
     to,
