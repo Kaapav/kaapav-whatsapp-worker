@@ -23,7 +23,7 @@ const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 const GOOGLE_PRIVATE_KEY = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SHEET_TAB = process.env.GOOGLE_SHEET_TAB || 'WhatsAppLogs';
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+//const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
 
 let ioInstance = null;
 function setSocket(io) {
@@ -281,7 +281,7 @@ async function sendPaymentAndTrackMenu(to, lang = 'en') {
   const body = await fromEnglish(
     "💎 *Complete Your Sparkle with KAAPAV* 💎\n\n" +
     "Choose a secure option:\n" +
-    "1️⃣ 💳 Payment – UPI or Cards\n" +
+    "1️⃣ 💳 Payment – UPI or Cards-payment\n\n"" +
     "2️⃣ 📦 Track Your Order – Shiprocket\n\n" +
     "🚫 No COD ❌",
     lang
