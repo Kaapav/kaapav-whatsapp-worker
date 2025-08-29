@@ -10,7 +10,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: 5555,
-
+ADMIN_TOKEN=206f44c014062aed4982a3c25fe61a5b
         // WhatsApp Cloud API
         WHATSAPP_ACCESS_TOKEN: "EAAI6dZCuTmYYBPFs5zVM7jPrDTAsHsyjHsl2d6ZAc5do7BpnwwydjXL6L7tvuIFSauTZBxoCogmKvtJWKwDkofXjI0mZAbPkLQ7fwsBMgG3XioKA1MqePVYK6h8P6IZCFBow6qHpw6nZC7zPH3ITdnaWrxOj4ZBORhjPmj9Yxlz0Kej6UFHOS4sbVTItWllYrPcZAgZDZD",
         WHATSAPP_PHONE_NUMBER_ID: "745230991999571",
