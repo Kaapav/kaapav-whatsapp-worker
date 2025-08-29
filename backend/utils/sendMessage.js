@@ -370,7 +370,6 @@ module.exports = {
 
   // menus
   sendMainMenu,
-  sendMainMenuAlt,
   sendJewelleryCategoriesMenu,
   sendOffersAndMoreMenu,
   sendPaymentAndTrackMenu,
