@@ -36,9 +36,7 @@ const LINKS = {
   whatsappCatalog: "https://wa.me/c/919148330016",
   waMeChat: "https://wa.me/919148330016",
   offersBestsellers: "https://www.kaapav.com/shop/category/all-jewellery-12?category=12&search=&order=&tags=16",
-  upi: "upi://pay?pa=your-upi@upi&pn=KAAPAV", // 👉 replace with your real UPI handle
-  card: "https://kaapav.com/pay/card",        // hosted card/netbanking
-  razorpay: "https://razorpay.me/@kaapav",    // Razorpay payment link
+  payment: "https://razorpay.me/@kaapav",    // Razorpay payment link
   shiprocket: "https://www.shiprocket.in/shipment-tracking/",
   googleReview: "https://g.page/YOUR-GOOGLE-REVIEW-LINK", // optional
   facebook: "https://www.facebook.com/kaapavfashionjewellery/",
@@ -252,7 +250,7 @@ async function sendJewelleryCategoriesMenu(to, lang = 'en') {
 // ======== OFFERS MENU ========
 async function sendOffersAndMoreMenu(to, lang = 'en') {
   const body = await fromEnglish(
-    "💫 *Exclusive Luxury Offers!* 💫\n\n🎉 Flat 50% OFF Select Styles ✨\n🚚 Free Shipping Above ₹499 💝",
+    "💫 *Exclusive Luxury Offers!* 💫\n\n🎉 Flat 50% OFF Select Styles ✨\n🚚 Free Shipping Above ₹498/- 💝",
     lang
   );
 
@@ -278,14 +276,18 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
   return sendAPIRequest(payload);
 }
 
-// ======== PAYMENT MENU ========
-async function sendPaymentOrdersMenu(to, lang = 'en') {
+// ======== PAYMENT & TRACK MENU ========
+async function sendPaymentAndTrackMenu(to, lang = 'en') {
   const body = await fromEnglish(
-    "💳 *Complete Your Sparkle* 💳\n\nChoose a secure option:\n1️⃣ 💎 UPI – Quick & Easy\n2️⃣ 👑 Cards – Safe & Seamless\n\n🚫 No COD ❌",
+    "💎 *Complete Your Sparkle with KAAPAV* 💎\n\n" +
+    "Choose a secure option:\n" +
+    "1️⃣ 💳 Payment – UPI or Cards\n" +
+    "2️⃣ 📦 Track Your Order – Shiprocket\n\n" +
+    "🚫 No COD ❌",
     lang
   );
 
-  const footer = await fromEnglish("💎 KAAPAV – Luxury Seamless 👑", lang);
+  const footer = await fromEnglish("👑 KAAPAV – Luxury, Seamless & Secure ✨", lang);
 
   const payload = {
     messaging_product: "whatsapp",
@@ -297,31 +299,14 @@ async function sendPaymentOrdersMenu(to, lang = 'en') {
       footer: { text: footer },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "PAY_UPI", title: await fromEnglish("💎 UPI", lang) } },
-          { type: "reply", reply: { id: "PAY_CARD", title: await fromEnglish("💳 Cards", lang) } },
+          { type: "reply", reply: { id: "PAYMENT_MENU", title: await fromEnglish("💳 Payment", lang) } },
+          { type: "reply", reply: { id: "TRACK_ORDER", title: await fromEnglish("📦 Track Order", lang) } },
           { type: "reply", reply: { id: "MAIN_MENU", title: await fromEnglish("🏰 Home", lang) } },
         ],
       },
     },
   };
   return sendAPIRequest(payload);
-}
-
-// ======== TRACK ORDER MENU ========
-async function sendTrackOrderCta(to, lang = 'en') {
-  const body = await fromEnglish(
-    "📦 *Track Your Order – KAAPAV Jewellery* 📦\n\n✨ Stay updated on your sparkle’s journey ✨🚚",
-    lang
-  );
-
-  const footer = await fromEnglish("🔍 Track via Shiprocket | 💬 Help?", lang);
-
-  return sendReplyButtons(
-    to,
-    body,
-    [{ id: "MAIN_MENU", title: await fromEnglish("⬅️ Home", lang) }],
-    footer
-  );
 }
 
 // ======== CHAT MENU ========
@@ -396,10 +381,9 @@ module.exports = {
   sendMainMenuAlt,
   sendJewelleryCategoriesMenu,
   sendOffersAndMoreMenu,
-  sendPaymentOrdersMenu,
+  sendPaymentAndTrackMenu,
 
   // CTAs
-  sendTrackOrderCta,
   sendChatWithUsCta,
   sendSocialMenu,
 
