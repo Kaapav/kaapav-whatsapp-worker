@@ -5,7 +5,7 @@
 
 const axios = require('axios');
 require('dotenv').config();
-const { fromEnglish } = require('./translate');
+const { fromEnglish } = require('./translate.js');
 
 async function sendLocalizedText(to, text, lang = 'en') {
   const localized = await fromEnglish(text, lang);
