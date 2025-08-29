@@ -281,7 +281,7 @@ async function sendPaymentAndTrackMenu(to, lang = 'en') {
   const body = await fromEnglish(
     "💎 *Complete Your Sparkle with KAAPAV* 💎\n\n" +
     "Choose a secure option:\n" +
-    "1️⃣ 💳 Payment – UPI or Cards-payment\n\n"" +
+    "1️⃣ 💳 Payment – UPI or Cards\n" +
     "2️⃣ 📦 Track Your Order – Shiprocket\n\n" +
     "🚫 No COD ❌",
     lang
