@@ -203,14 +203,6 @@ async function sendMainMenu(to, lang = 'en') {
   return sendAPIRequest(payload);
 }
 
-// Alt main menu (you can customize later)
-async function sendMainMenuAlt(to, lang = "en") {
-  return sendText(
-    to,
-    "✨ KAAPAV Alt Menu ✨\nThis is a placeholder menu. Full version coming soon!"
-  );
-}
-
 // Simple info (basic text sender for fallback commands)
 async function sendSimpleInfo(to, text, lang = "en") {
   const localized = await fromEnglish(text, lang);
