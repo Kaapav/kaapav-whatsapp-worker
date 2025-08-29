@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "kaapav-chat-ui/package.json", "use": "@vercel/node" }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/kaapav-chat-ui/$1" }
-  ]
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": "vite"
 }
