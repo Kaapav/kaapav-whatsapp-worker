@@ -299,7 +299,7 @@ async function sendPaymentAndTrackMenu(to, lang = 'en') {
       footer: { text: footer },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "PAYMENT_MENU", title: await fromEnglish("💳 Payment", lang) } },
+          { type: "reply", reply: { id: "PAY_NOW", title: await fromEnglish("💳 Payment", lang) } },
           { type: "reply", reply: { id: "TRACK_ORDER", title: await fromEnglish("📦 Track Order", lang) } },
           { type: "reply", reply: { id: "MAIN_MENU", title: await fromEnglish("🏰 Home", lang) } },
         ],
