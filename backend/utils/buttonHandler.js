@@ -149,7 +149,7 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         return true;
 
      case "PAYMENT_MENU":
-        await sendMessage.sendSimpleInfo(from, `🏦 Pay via UPI/Card/Netbanking:\n${sendMessage.LINKS.card}`);
+        await sendMessage.sendSimpleInfo(from, `🏦 Pay via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`);
         return true;
 
      case "TRACK_ORDER":
