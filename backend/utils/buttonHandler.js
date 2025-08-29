@@ -41,7 +41,8 @@ const idMap = {
 
   // Payments
   'payment_menu': 'PAYMENT_MENU',
-
+  'pay_now': 'PAY_NOW',
+  
   // Tracking & support
   'track_order': 'TRACK_ORDER',
   'chat_now': 'CHAT_NOW',
