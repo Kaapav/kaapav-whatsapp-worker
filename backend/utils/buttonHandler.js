@@ -61,7 +61,7 @@ const keywords = [
   // Menus
   { re: /\b(browse|shop|website|site)\b/i, action: "JEWELLERY_MENU" },
   { re: /\b(offer|discount|deal|sale)\b/i, action: "OFFERS_MENU" },
-  { re: /\b(pay(?:ment)?|razorpay|upi|card|netbanking)\b/i, action: "PAYMENT_MENU" },
+  { re: /\b(pay(?:ment)?|upi|card|netbanking|debit|credit)\b/i, action: "PAY_NOW" },
   { re: /\b(chat|help|support|agent)\b/i, action: "CHAT_MENU" },
   { re: /\b(back|main menu|menu|start|hi|hello|hey|namaste)\b/i, action: "MAIN_MENU" },
 
@@ -70,7 +70,7 @@ const keywords = [
   { re: /\b(list|categories|category list|full list)\b/i, action: "SHOW_LIST" },
   { re: /\b(website|shop now)\b/i, action: "OPEN_WEBSITE" },
   { re: /\b(catalog|catalogue|whatsapp catalog)\b/i, action: "OPEN_CATALOG" },
-  { re: /\b(upi|card|netbanking|debit|credit)\b/i, action: "PAYMENT_MENU" },
+  { re: /\b(upi|card|netbanking|debit|credit)\b/i, action: "PAYMENT_MENU" }
   { re: /\b(track|tracking|order status|where.*order)\b/i, action: "TRACK_ORDER" },
   { re: /\b(chat now|talk|connect)\b/i, action: "CHAT_NOW" },
 
@@ -118,7 +118,12 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await sendMessage.sendPaymentAndTrackMenu(from, session);
         await upsertSession(from, { lastMenu: "payment_track" });
         return true;
-
+      
+      case "PAY_NOW":
+  await sendMessage.sendSimpleInfo(from, `🏦 Pay securely via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`
+  );
+  return true;
+  
       case "CHAT_MENU":
         await sendMessage.sendChatWithUsCta(from, session);
         await upsertSession(from, { lastMenu: "chat" });
@@ -148,7 +153,7 @@ async function routeAction(action, from, session, upsertSession = async () => {}
         await sendMessage.sendSimpleInfo(from, `📱 WhatsApp Catalogue:\n${sendMessage.LINKS.whatsappCatalog}`);
         return true;
 
-     case "PAYMENT_MENU":
+     case "PAY_NOW":
         await sendMessage.sendSimpleInfo(from, `🏦 Pay via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`);
         return true;
 
