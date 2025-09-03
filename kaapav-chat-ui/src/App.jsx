@@ -28,8 +28,8 @@ export default function App() {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  const socketUrl = import.meta.env?.VITE_SOCKET_URL || "http://kaapavchatbot.duckdns.org:5555";
-  const apiBase = import.meta.env?.VITE_API_URL || "http://140.245.237.152";
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL || "https://kaapav.chickenkiller.com/socket";
+const apiBase = import.meta.env?.VITE_API_URL || "https://kaapav.chickenkiller.com/api";
 
   // Dark mode
   useEffect(() => {
