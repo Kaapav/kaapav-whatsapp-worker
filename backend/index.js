@@ -54,6 +54,40 @@ const app = express();
 app.use(bodyParser.json({ limit: '2mb' }));
 app.use(cors());
 
+/**
+ * ✅ 1. Redirect middleware
+ * This runs BEFORE routes.
+ * If user hits kaapav.is-a.dev, redirect to www.kaapav.is-a.dev
+ */
+app.use((req, res, next) => {
+  if (req.hostname === 'kaapav.is-a.dev') {
+    return res.redirect(301, 'https://www.kaapav.is-a.dev' + req.url);
+  }
+  next();
+});
+
+/**
+ * ✅ 2. Routes
+ */
+app.get('/', (req, res) => {
+  res.send('KAAPAV App is live! 🚀');
+});
+
+/**
+ * ✅ 3. Catch-all 404
+ * This must come last — after all other routes.
+ */
+app.use((req, res) => {
+  res.status(404).send('Page not found');
+});
+
+/**
+ * ✅ 4. Start server
+ */
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
 // ====== HTTP + Socket.IO ======
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
