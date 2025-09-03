@@ -341,7 +341,7 @@ io.on('connection', async (socket) => {
 // ====== Helpers for menu actions ======
 const MENU_ACTIONS = {
   sendMainMenu1: async (to) => { await sendMessage.sendMainMenu(to); await upsertSession(to, { lastMenu: 'main' }); },
-  sendMainMenu2: async (to) => { await sendMessage.sendMainMenuAlt(to); await upsertSession(to, { lastMenu: 'main_alt' }); },
+  sendMainMenu2: async (to) => { await sendMessage.sendMainMenu(to); await upsertSession(to, { lastMenu: 'main' }); },
   sendJewelleryCategoriesMenu: async (to) => { await sendMessage.sendJewelleryCategoriesMenu(to); await upsertSession(to, { lastMenu: 'jewellery_categories' }); },
   sendOffersMenu: async (to) => { await sendMessage.sendOffersAndMoreMenu(to); await upsertSession(to, { lastMenu: 'offers' }); },
   sendPaymentMenu: async (to) => { await sendMessage.sendPaymentOrdersMenu(to); await upsertSession(to, { lastMenu: 'payment' }); },
