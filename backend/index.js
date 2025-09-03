@@ -641,7 +641,8 @@ app.get('/test/selfcheck', async (req, res) => {
 });
 // start server + keepalive
 function startServer() {
-  if (USE_UNIX_SOCKET) {
+  // If Render sets a PORT, always prefer TCP port, never UNIX socket
+  if (USE_UNIX_SOCKET && !process.env.PORT) {
     try { if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH); } catch {}
     server.listen(SOCKET_PATH, () => {
       try { fs.chmodSync(SOCKET_PATH, 0o766); } catch {}
@@ -652,6 +653,7 @@ function startServer() {
     server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
   }
 }
+
 startServer();
 
 // optional keepalive ping (to prevent Render idling)
