@@ -36,9 +36,9 @@ import {
 
 export default function AdminWhatsAppPanel() {
   // ===== CONFIG =====
-  const socketUrl = "/socket.io";           // main customer chat
-  const internalSocketUrl = "/socket.io/internal"; // internal agent chat
-  const apiBase = "/api";                   // REST base
+  const socketUrl = "https://kaapav.chickenkiller.com";           // main customer chat
+  const internalSocketUrl = "https://kaapav.chickenkiller.com"; // internal agent chat
+  const apiBase = "https://kaapav.chickenkiller.com";                  // REST base
   const token = "KAAPAV_ADMIN_123";         // TODO: replace with real JWT
   const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
