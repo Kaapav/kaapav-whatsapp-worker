@@ -5,6 +5,7 @@
 // Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
 
 require('dotenv').config();
+const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -13,6 +14,8 @@ const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
 const { Server } = require('socket.io');
+const USE_UNIX_SOCKET = process.env.USE_UNIX_SOCKET === '1';
+const SOCKET_PATH = process.env.SOCKET_PATH || '/var/run/kaapav.sock';
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
@@ -610,9 +613,19 @@ app.get('/test/selfcheck', async (req, res) => {
   res.json(checks);
 });
 // start server + keepalive
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+function startServer() {
+  if (USE_UNIX_SOCKET) {
+    try { if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH); } catch {}
+    server.listen(SOCKET_PATH, () => {
+      try { fs.chmodSync(SOCKET_PATH, 0o766); } catch {}
+      console.log(`🚀 Server running on UNIX socket ${SOCKET_PATH}`);
+    });
+  } else {
+    const port = Number(process.env.PORT || 5555);
+    server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
+  }
+}
+startServer();
 
 // optional keepalive ping (to prevent Render idling)
 setInterval(async () => {
