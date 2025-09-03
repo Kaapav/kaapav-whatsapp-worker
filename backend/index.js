@@ -81,13 +81,6 @@ app.use((req, res) => {
   res.status(404).send('Page not found');
 });
 
-/**
- * ✅ 4. Start server
- */
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
 // ====== HTTP + Socket.IO ======
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
