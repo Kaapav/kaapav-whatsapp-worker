@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useState } from "react";
 import {
   Sun, Moon, MessageCircle, Send, Search, Check, CheckCheck,
   Upload, UserCircle2, Sparkles, Clock, Megaphone, Tags, NotebookPen,
@@ -35,6 +36,43 @@ import {
  */
 
 export default function AdminWhatsAppPanel() {
+  const [theme, setTheme] = useState("light");
+
+  return (
+    <div className={`min-h-screen ${theme === "light" ? "bg-white text-black" : "bg-zinc-900 text-white"} p-6`}>
+      <header className="mb-6">
+        <h1 className="text-3xl font-semibold">KAAPAV Concierge</h1>
+        <p className="text-sm opacity-70">Admin WhatsApp Panel</p>
+      </header>
+
+      <div className="flex gap-3 mb-4">
+        <button className="px-3 py-1 rounded border">Sessions</button>
+        <button className="px-3 py-1 rounded border">Actions</button>
+        <button
+          onClick={() => setTheme(t => (t === "light" ? "dark" : "light"))}
+          className="px-3 py-1 rounded border"
+        >
+          {theme === "light" ? "Dark" : "Light"}
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        <div>No session selected</div>
+        <div>Disconnected</div>
+        <div>No messages yet</div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <input
+          className="border rounded px-2 py-1 flex-1"
+          placeholder="Select a session first"
+          disabled
+        />
+        <button className="border rounded px-3 py-1" disabled>Send</button>
+      </div>
+    </div>
+  );
+}
   // ===== CONFIG =====
   const socketUrl = "https://kaapav.chickenkiller.com";           // main customer chat
   const internalSocketUrl = "https://kaapav.chickenkiller.com"; // internal agent chat
