@@ -653,6 +653,18 @@ function startServer() {
     server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
   }
 }
+// Health & keepalive routes
+app.get("/", (req, res) => {
+  res.send("✅ Kaapav WhatsApp Worker is alive!");
+});
+
+app.get("/test/selfcheck", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: "alive",
+    timestamp: Date.now()
+  });
+});
 
 startServer();
 
