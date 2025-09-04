@@ -810,7 +810,7 @@ export default function AdminWhatsAppPanel() {
           </Card>
 
           {/* Internal Agent Chat */}
-          {(role === 'admin' || role === 'agent') & (
+          {(role === 'admin' || role === 'agent') && (
           <Card>
             <CardContent className="p-3 space-y-2">
               <div className="font-semibold flex items-center gap-2"><Users className="w-4 h-4"/> Internal Chat</div>
