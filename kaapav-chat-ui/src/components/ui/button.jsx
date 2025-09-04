@@ -1,5 +1,4 @@
 import React from "react";
-import clsx from "clsx";
 
 export function Button({
   children,
@@ -24,7 +23,7 @@ export function Button({
 
   return (
     <button
-      className={clsx(base, variants[variant], sizes[size], className)}
+      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}
