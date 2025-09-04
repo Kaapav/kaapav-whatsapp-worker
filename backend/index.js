@@ -640,19 +640,6 @@ app.get('/test/selfcheck', async (req, res) => {
   res.json(checks);
 });
 // start server + keepalive
-function startServer() {
-  // If Render sets a PORT, always prefer TCP port, never UNIX socket
-  if (USE_UNIX_SOCKET && !process.env.PORT) {
-    try { if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH); } catch {}
-    server.listen(SOCKET_PATH, () => {
-      try { fs.chmodSync(SOCKET_PATH, 0o766); } catch {}
-      console.log(`🚀 Server running on UNIX socket ${SOCKET_PATH}`);
-    });
-  } else {
-    const port = Number(process.env.PORT || 5555);
-    server.listen(port, () => console.log(`🚀 Server running on port ${port}`));
-  }
-}
 // Health & keepalive routes
 app.get("/", (req, res) => {
   res.send("✅ Kaapav WhatsApp Worker is alive!");
@@ -666,16 +653,25 @@ app.get("/test/selfcheck", (req, res) => {
   });
 });
 
+// Start server
+function startServer() {
+  const port = Number(process.env.PORT || 5555); // Render provides PORT
+  server.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+  });
+}
+
 startServer();
 
-// optional keepalive ping (to prevent Render idling)
+// Keepalive ping (to prevent Render idling)
 setInterval(async () => {
-  console.log('🔄 Keepalive ping...');
+  console.log("🔄 Keepalive ping...");
   if (RENDER_EXTERNAL_URL) {
     try {
-      await axios.get(RENDER_EXTERNAL_URL + '/test/selfcheck', { timeout: 10000 });
+      await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
     } catch (err) {
-      console.warn('Keepalive ping failed:', err.message || err);
+      console.warn("Keepalive ping failed:", err.message || err);
     }
   }
-}, Number(KEEPALIVE_INTERVAL_MS || 300000));
+}, Number(KEEPALIVE_INTERVAL_MS || 300000)); // default 5 min
+
