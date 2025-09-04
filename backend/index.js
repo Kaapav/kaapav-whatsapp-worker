@@ -652,8 +652,8 @@ app.get("/test/selfcheck", (req, res) => {
 });
 
 // Start server
-  server.listen(port, () => {
-    console.log(`🚀 Server running on port ${port}`);
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 
 // Keepalive ping (to prevent Render idling)
