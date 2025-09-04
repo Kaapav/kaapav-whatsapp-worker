@@ -14,8 +14,6 @@ const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
 const { Server } = require('socket.io');
-const USE_UNIX_SOCKET = process.env.USE_UNIX_SOCKET === '1';
-const SOCKET_PATH = process.env.SOCKET_PATH || '/var/run/kaapav.sock';
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
@@ -655,7 +653,6 @@ app.get("/test/selfcheck", (req, res) => {
 
 // Start server
 function startServer() {
-  const port = Number(process.env.PORT || 5555); // Render provides PORT
   server.listen(port, () => {
     console.log(`🚀 Server running on port ${port}`);
   });
