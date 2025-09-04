@@ -70,14 +70,6 @@ app.get('/', (req, res) => {
   res.send('KAAPAV App is live! 🚀');
 });
 
-/**
- * ✅ 3. Catch-all 404
- * This must come last — after all other routes.
- */
-app.use((req, res) => {
-  res.status(404).send('Page not found');
-});
-
 // ====== HTTP + Socket.IO ======
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
