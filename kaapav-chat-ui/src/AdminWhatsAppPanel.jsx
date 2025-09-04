@@ -461,7 +461,7 @@ export default function AdminWhatsAppPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-2">
-          <MessageCircle className="text-amber-500" />
+          <MessageCircle className="text-[#C4952F]" />
           <div className="font-semibold">KAAPAV Cockpit</div>
           <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500" : ""}>
             {connected ? "Connected" : "Offline"}
@@ -525,7 +525,7 @@ export default function AdminWhatsAppPanel() {
                    onClick={()=>setSelected(s.userId)}>
                 <div className="flex items-center justify-between">
                   <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
-                  {s.unread>0 && <Badge className="bg-amber-500 text-black">{s.unread}</Badge>}
+                  {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
                 </div>
                 <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
                 <div className="mt-1 flex gap-1 flex-wrap">
@@ -554,7 +554,7 @@ export default function AdminWhatsAppPanel() {
             {messages.map((m)=>{
               const isOut = m.direction === 'out' || m.from === 'admin';
               const bubble = (
-                <div className={`max-w-[78%] p-3 rounded-2xl shadow ${isOut? 'ml-auto bg-gradient-to-r from-amber-400 to-amber-500 text-black' : 'mr-auto bg-gray-200 dark:bg-gray-800'}`}>
+                <div className={`max-w-[78%] p-3 rounded-2xl shadow ${isOut? 'ml-auto bg-gradient-to-r from-[#D4AF37] to-[#C4952F] text-white' : 'mr-auto bg-gray-200 dark:bg-gray-800'}`}>
                   <div className="text-[10px] opacity-60 mb-1 flex items-center gap-1">
                     {isOut? 'You' : (m.from||'User')} • {new Date(m.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                     {isOut && <StatusTick status={m.status} />}
@@ -585,7 +585,7 @@ export default function AdminWhatsAppPanel() {
                       value={composer}
                       onChange={(e)=>setComposer(e.target.value)}
                       onKeyDown={(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-            <Button onClick={sendMessage} disabled={!selected} className="bg-amber-500 text-black"><Send className="w-4 h-4" /></Button>
+            <Button onClick={sendMessage} disabled={!selected} className="bg-[#C4952F] text-white"><Send className="w-4 h-4" /></Button>
           </div>
 
           {/* AI Suggestions */}
@@ -816,7 +816,7 @@ export default function AdminWhatsAppPanel() {
               <div className="font-semibold flex items-center gap-2"><Users className="w-4 h-4"/> Internal Chat</div>
               <div className="max-h-28 overflow-auto text-xs space-y-1">
                 {internalMsgs.map((m,i)=> (
-                  <div key={i} className={`p-2 rounded ${m.from==='me'?'bg-amber-100 text-black ml-auto':'bg-gray-200 dark:bg-gray-800'} max-w-[85%]`}>{m.text}</div>
+                  <div key={i} className={`p-2 rounded ${m.from==='me'?'bg-[#F8F5EF] text-[#3A2F16] ml-auto':'bg-gray-200 dark:bg-gray-800'} max-w-[85%]`}>{m.text}</div>
                 ))}
                 {internalMsgs.length===0 && <div className="opacity-60">No internal messages</div>}
               </div>
@@ -1001,7 +1001,7 @@ export default function AdminWhatsAppPanel() {
             <Textarea rows={3} placeholder="Any notes…" value={csatNote} onChange={(e)=>setCsatNote(e.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={()=>setShowCSAT(false)}>Cancel</Button>
-              <Button className="bg-amber-500 text-black" onClick={submitCSAT}>Submit</Button>
+              <Button className="bg-[#C4952F] text-white" onClick={submitCSAT}>Submit</Button>
             </div>
           </div>
         </SheetContent>
