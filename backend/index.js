@@ -5,7 +5,6 @@
 // Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
 
 require('dotenv').config();
-const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
