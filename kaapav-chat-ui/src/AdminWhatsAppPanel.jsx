@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
 import {
   Sun, Moon, MessageCircle, Send, Search, Check, CheckCheck,
   Upload, UserCircle2, Sparkles, Clock, Megaphone, Tags, NotebookPen,
