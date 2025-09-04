@@ -1,16 +1,32 @@
-import * as React from "react";
+import React from "react";
+import clsx from "clsx";
 
-export function Button({ children, variant = "default", className = "", ...props }) {
-  let base =
-    "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
-  let styles = {
-    default: "bg-[#C4952F] text-white hover:bg-[#b18228] focus:ring-[#C4952F]",
-    outline:
-      "border border-[#C4952F] text-[#C4952F] bg-white hover:bg-[#C4952F]/10 focus:ring-[#C4952F]",
-    ghost: "text-[#C4952F] hover:bg-[#C4952F]/10",
+export function Button({
+  children,
+  className = "",
+  variant = "default",
+  size = "default",
+  ...props
+}) {
+  const base = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
+
+  const variants = {
+    default: "bg-[#C4952F] text-white hover:bg-[#A37B24]",
+    outline: "border border-gray-300 dark:border-gray-700 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800",
+    ghost: "bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800",
   };
+
+  const sizes = {
+    default: "px-4 py-2 text-sm",
+    sm: "px-2 py-1 text-xs",
+    icon: "p-2 rounded-full",
+  };
+
   return (
-    <button className={`${base} ${styles[variant]} ${className}`} {...props}>
+    <button
+      className={clsx(base, variants[variant], sizes[size], className)}
+      {...props}
+    >
       {children}
     </button>
   );
