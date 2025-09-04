@@ -25,8 +25,8 @@ export default function App() {
   const socketRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  const socketUrl = import.meta.env?.VITE_SOCKET_URL || "https://kaapav.chickenkiller.com/socket";
-const apiBase = import.meta.env?.VITE_API_URL || "https://kaapav.chickenkiller.com/api";
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL || "https://kaapav.is-a.dev/socket";
+const apiBase = import.meta.env?.VITE_API_URL || "https://kaapav.is-a.dev/api";
 
   // Dark mode
   useEffect(() => {
