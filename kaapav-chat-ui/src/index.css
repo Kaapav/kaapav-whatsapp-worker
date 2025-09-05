@@ -33,7 +33,7 @@ h1, h2, h3, h4, h5 {
 }
 
 .btn-gold {
-  @apply bg-gold text-black hover:bg-yellow-400;
+  @apply bg-[#facc15] text-black hover:bg-yellow-400;
 }
 
 .btn-outline {
