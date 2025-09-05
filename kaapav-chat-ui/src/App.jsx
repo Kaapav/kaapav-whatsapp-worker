@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import AdminWhatsAppPanel from "./AdminWhatsAppPanel";
+
+export default function App() {
+  return <AdminWhatsAppPanel />;
+}
+
 /*
   MAXED-OUT WHATSAPP-LIKE ADMIN DASHBOARD
   + Autoresponder menu for incoming messages
