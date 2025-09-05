@@ -190,7 +190,7 @@ async function isDuplicateMessage(messageId) {
     for (const [k, v] of m) if (now - v > 5 * 60 * 1000) m.delete(k);
   }
   return false;
-
+}
 // ====== Sessions (Redis first) ======
 async function loadSession(userId) {
   if (!userId) return null;
