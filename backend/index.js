@@ -183,12 +183,23 @@ async function isDuplicateMessage(messageId) {
   if (last && now - last < Number(DUPLICATE_WINDOW_MS)) return true;
   m.set(messageId, now);
   // cleanup
+  try {
+    if (redis) {
+      const exists = await redis.set(`dup:${messageId}`, "1", { ex: Number(DUPLICATE_WINDOW_MS || 20), nx: true });
+      if (!exists) return true; // duplicate
+    }
+  } catch (e) {
+    console.warn("⚠️ Redis duplicate check failed:", e.message);
+  }
+
+  m.set(messageId, now);
+  // cleanup
   if (m.size > 5000) {
     for (const [k, v] of m) if (now - v > 5 * 60 * 1000) m.delete(k);
   }
+
   return false;
 }
-
 // ====== Sessions (Redis first) ======
 async function loadSession(userId) {
   if (!userId) return null;
