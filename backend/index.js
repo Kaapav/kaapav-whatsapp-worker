@@ -125,7 +125,8 @@ async function initMongo() {
       text: String,
       payload: Object,
       createdAt: { type: Date, default: Date.now },
-      messageId: { type: String, index: true } // for idempotency
+      messageId: { type: String, index: true }, // for idempotency
+      name: String 
     });
     MessageModel = mongoose.models.Message || mongoose.model('Message', messageSchema);
   } catch (e) {
@@ -206,7 +207,7 @@ async function loadSession(userId) {
   return def;
 }
 
-async function saveMessage(userId, direction, type, text, payload, messageId) {
+async function saveMessage(userId, direction, type, text, payload, messageId,name) {
   try {
     const obj = {
       userId,
@@ -215,7 +216,8 @@ async function saveMessage(userId, direction, type, text, payload, messageId) {
       text: text || '',
       payload: payload || null,
       createdAt: new Date(),
-      messageId
+      messageId,
+      name: name || null 
     };
     if (MessageModel) {
       if (messageId) {
@@ -223,8 +225,14 @@ async function saveMessage(userId, direction, type, text, payload, messageId) {
         if (!exists) await MessageModel.create(obj);
       } else {
         await MessageModel.create(obj);
+        console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
+     }
+      } else {
+        await MessageModel.create(obj);
+        console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
       }
     }
+  
     try { io.to('admin').emit('message_saved', obj); } catch {}
   } catch (e) {
     console.warn('⚠️ saveMessage error', e.message);
@@ -325,16 +333,44 @@ io.on('connection', async (socket) => {
       }
     });
 
-    socket.on('admin_send_message', async ({ to, text }) => {
-      if (!to || !text) return socket.emit('admin_send_error', { error: 'missing_to_or_text' });
-      try {
-        await sendMessage.sendText(to, text);
-        await saveMessage(to, 'out', 'text', text, null);
-        io.to('admin').emit('outgoing_message', { to, type: 'text', text, ts: Date.now(), direction: 'out' });
-      } catch (e) {
-        socket.emit('admin_send_error', { error: e.message || String(e) });
-      }
+ socket.on('admin_send_message', async ({ to, text }) => {
+  if (!to || !text) {
+    return socket.emit('admin_send_error', { error: 'missing_to_or_text' });
+  }
+
+  try {
+    // Send message via WA Cloud API
+    const waRes = await sendMessage.sendText(to, text);
+
+    // Extract WA messageId if returned, else fallback to timestamp
+    const msgId = waRes?.messages?.[0]?.id || `out_${Date.now()}`;
+
+    // Save outgoing message in DB
+    await saveMessage(
+      to,
+      'out',            // direction
+      'text',           // type
+      text,             // content
+      { raw: waRes },   // store WA API response
+      msgId          ,// unique id
+      name
+    );
+
+    // Emit to cockpit UI
+    io.to('admin').emit('outgoing_message', {
+      to,
+      type: 'text',
+      text,
+      ts: Date.now(),
+      direction: 'out',
+      id: msgId,
     });
+  } catch (e) {
+    console.error('Admin send error:', e);
+    socket.emit('admin_send_error', { error: e.message || String(e) });
+  }
+});
+
 
     socket.on('admin_send_buttons', async (payload) => {
       const { to, bodyText, buttons, footerText } = payload || {};
@@ -509,14 +545,20 @@ app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
     const session = await loadSession(from);
 
     // emit incoming for admin
-    try {
-      io.to('admin').emit('incoming_message', {
-        from,
-        message: { type: message.type, text: message.text?.body || null, interactive: message.interactive || null },
-        ts: Date.now()
-      });
-    } catch {}
+     const msgObj = {
+      type: message.type,
+      text: message.text?.body || null,
+      interactive: message.interactive || null,
+    };
 
+    await saveMessage(from, 'in', message.type, msgObj.text, { raw: message }, msgId);
+
+    io.to('admin').emit('incoming_message', {
+      from,
+      message: msgObj,
+      ts: Date.now(),
+    });
+    
     if (message.type === 'interactive') {
       const reply = message.interactive?.button_reply || message.interactive?.list_reply || {};
       const rawId = (reply?.id || reply?.title || reply?.row_id || '').toString().trim();
