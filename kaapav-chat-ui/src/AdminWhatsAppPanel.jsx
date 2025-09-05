@@ -543,6 +543,7 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
   socketRef.current?.emit("fetch_session_messages", s.userId);
   setShowSessionsPanel(false);
 }}
+                >
                 <div className="flex items-center justify-between">
                   <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
                   {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
