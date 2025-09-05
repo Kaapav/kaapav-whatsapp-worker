@@ -6,6 +6,12 @@
 // - Socket.IO admin chat + message history
 // - Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
 // - Bug fixes: double routes, undefined var, message schema, robust webhook
+const { Redis } = require("@upstash/redis");
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
 
 require('dotenv').config();
 const express = require('express');
@@ -17,6 +23,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { Server } = require('socket.io');
 const Redis = require('ioredis');
+const processedMessageIds = new Map(); // messageId -> timestamp
 
 // Optional BullMQ
 let Queue, Worker, JobsOptions;
@@ -170,16 +177,15 @@ const memSessions = {}; // local cache if Redis absent
 // ====== Helpers: Idempotency (prefer Redis) ======
 async function isDuplicateMessage(messageId) {
   if (!messageId) return false;
-  const key = `dedupe:${messageId}`;
-  const ttlSec = Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000) || 20;
-  if (redis) {
-    try {
-      const set = await redis.set(key, '1', 'EX', ttlSec, 'NX');
-      return set !== 'OK'; // if not OK, already exists → duplicate
-    } catch (e) {
-      console.warn('⚠️ Redis dedupe fail; falling back:', e.message);
-    }
+  try {
+    const exists = await redis.set(`dup:${messageId}`, "1", { ex: Number(DUPLICATE_WINDOW_MS || 20), nx: true });
+    return !exists; // true = duplicate
+  } catch (e) {
+    console.warn("⚠️ Redis duplicate check failed:", e.message);
+    return false;
   }
+}
+
   // memory fallback
   if (!isDuplicateMessage._map) isDuplicateMessage._map = new Map();
   const m = isDuplicateMessage._map;
@@ -197,41 +203,49 @@ async function isDuplicateMessage(messageId) {
 // ====== Sessions (Redis first) ======
 async function loadSession(userId) {
   if (!userId) return null;
+
+  // try Redis first
+  try {
+    const cached = await redis.get(`session:${userId}`);
+    if (cached) return JSON.parse(cached);
+  } catch {}
+
+  // fallback → in-memory
+  if (sessions[userId]) return sessions[userId];
+
+  // fallback → Mongo
+  if (SessionModel) {
+    try {
+      const doc = await SessionModel.findOne({ userId }).lean();
+      if (doc) {
+        await redis.set(`session:${userId}`, JSON.stringify(doc), { ex: 86400 }); // cache 1 day
+        sessions[userId] = doc;
+        return doc;
+      }
+    } catch (e) {
+      console.warn("⚠️ session load error:", e.message);
+    }
+  }
+
+  // create default
   const def = {
     userId,
-    lastMenu: 'main',
+    lastMenu: "main",
     meta: { greetingSent: false, phone: userId },
     counters: { interactions: 0 },
     lastTenMessages: [],
     updatedAt: new Date()
   };
 
-  if (redis) {
-    const raw = await redis.get(`session:${userId}`);
-    if (raw) return JSON.parse(raw);
-  } else if (memSessions[userId]) {
-    return memSessions[userId];
-  }
-
-  if (SessionModel) {
-    try {
-      const doc = await SessionModel.findOne({ userId }).lean();
-      if (doc) {
-        if (redis) await redis.set(`session:${userId}`, JSON.stringify(doc), 'EX', 3600);
-        else memSessions[userId] = doc;
-        return doc;
-      }
-    } catch (e) { console.warn('⚠️ session load error:', e.message); }
-  }
-
+  sessions[userId] = def;
   if (SessionModel) {
     try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
   }
-  if (redis) await redis.set(`session:${userId}`, JSON.stringify(def), 'EX', 3600);
-  else memSessions[userId] = def;
+  try { await redis.set(`session:${userId}`, JSON.stringify(def), { ex: 86400 }); } catch {}
   try { io.to('admin').emit('session_update', def); } catch {}
   return def;
 }
+
 
 async function upsertSession(userId, patch = {}) {
   const now = new Date();
@@ -303,6 +317,14 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
         await MessageModel.create(obj);
       }
     }
+async function cacheMessage(userId, msg) {
+  try {
+    await redis.lpush(`msgs:${userId}`, JSON.stringify(msg));
+    await redis.ltrim(`msgs:${userId}`, 0, 49); // keep last 50
+  } catch (e) {
+    console.warn("⚠️ Redis cacheMessage failed:", e.message);
+  }
+}
 
     // Cache in Redis (last 50)
     await pushRedisMessage(userId, obj);
@@ -419,12 +441,12 @@ io.on('connection', async (socket) => {
     socket.on('fetch_session_messages', async (userId) => {
       if (!userId) return socket.emit('session_messages', []);
       try {
-        const cached = await getCachedMessages(userId);
-        if (cached.length) return socket.emit('session_messages', cached);
-        if (MessageModel) {
-          const msgs = await MessageModel.find({ userId }).sort({ createdAt: -1 }).limit(200).lean();
-          socket.emit('session_messages', msgs);
-        } else {
+        const cached = await redis.lrange(`msgs:${userId}`, 0, 49);
+if (cached && cached.length) {
+  const msgs = cached.map(m => JSON.parse(m));
+  return socket.emit('session_messages', msgs);
+}
+     } else {
           socket.emit('session_messages', []);
         }
       } catch (e) {
