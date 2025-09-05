@@ -207,7 +207,7 @@ async function loadSession(userId) {
   return def;
 }
 
-async function saveMessage(userId, direction, type, text, payload, messageId,name) {
+async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
     const obj = {
       userId,
@@ -217,27 +217,31 @@ async function saveMessage(userId, direction, type, text, payload, messageId,nam
       payload: payload || null,
       createdAt: new Date(),
       messageId,
-      name: name || null 
+      name: name || null
     };
+
     if (MessageModel) {
       if (messageId) {
         const exists = await MessageModel.findOne({ messageId }).lean();
         if (!exists) await MessageModel.create(obj);
       } else {
         await MessageModel.create(obj);
-        console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
-     }
-      } else {
-        await MessageModel.create(obj);
-        console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
       }
     }
-  
-    try { io.to('admin').emit('message_saved', obj); } catch {}
+
+    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
+
+    try {
+      io.to('admin').emit('message_saved', obj);
+    } catch (err) {
+      console.warn("⚠️ socket emit error in saveMessage:", err.message);
+    }
+
   } catch (e) {
     console.warn('⚠️ saveMessage error', e.message);
   }
 }
+
 
 // ====== Optional Integrations (Sheets / CRM / n8n / GitHub) ======
 let sheetsClient = null;
