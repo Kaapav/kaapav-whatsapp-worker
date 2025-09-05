@@ -100,16 +100,6 @@ app.get('/test/selfcheck', async (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-// ====== Redis ======
-let redis = null;
-if (REDIS_URI) {
-  redis = new Redis(REDIS_URI, { maxRetriesPerRequest: null });
-  redis.on('connect', () => console.log('✅ Redis connected'));
-  redis.on('error', (e) => console.warn('⚠️ Redis error:', e.message));
-} else {
-  console.warn('⚠️ REDIS_URI not set — Redis features disabled.');
-}
-
 // ====== Mongo Models (optional but recommended) ======
 let SessionModel = null;
 let MessageModel = null;
