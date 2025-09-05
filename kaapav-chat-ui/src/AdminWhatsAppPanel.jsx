@@ -41,8 +41,7 @@ export default function AdminWhatsAppPanel() {
 const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://kaapav.is-a.dev/socket";
 const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://kaapav.is-a.dev/api";
 const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
-  const token = "KAAPAV_ADMIN_123";         // TODO: replace with real JWT
-  const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
+const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
   // ===== TENANT & ROLE =====
   const [tenant, setTenant] = useState(localStorage.getItem("tenant") || "kaapav-default");
