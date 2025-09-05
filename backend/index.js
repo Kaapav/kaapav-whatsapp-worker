@@ -22,7 +22,6 @@ const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
 const { Server } = require('socket.io');
-const Redis = require('ioredis');
 const processedMessageIds = new Map(); // messageId -> timestamp
 
 // Optional BullMQ
