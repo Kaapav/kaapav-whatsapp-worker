@@ -209,6 +209,12 @@ async function loadSession(userId) {
 
 async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
+    // try to load session for name/phone
+    let session = null;
+    if (!name) {
+      try { session = await loadSession(userId); } catch {}
+    }
+
     const obj = {
       userId,
       direction,
@@ -217,7 +223,8 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
       payload: payload || null,
       createdAt: new Date(),
       messageId,
-      name: name || null
+      name: name || session?.meta?.name || null,
+      phone: session?.meta?.phone || userId  // ✅ always save phone
     };
 
     if (MessageModel) {
@@ -229,7 +236,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
       }
     }
 
-    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${text}`);
+    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text}`);
 
     try {
       io.to('admin').emit('message_saved', obj);
@@ -241,6 +248,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
     console.warn('⚠️ saveMessage error', e.message);
   }
 }
+
 
 
 // ====== Optional Integrations (Sheets / CRM / n8n / GitHub) ======
