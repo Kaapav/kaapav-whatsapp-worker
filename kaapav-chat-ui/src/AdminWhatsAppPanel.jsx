@@ -37,9 +37,10 @@ import {
 export default function AdminWhatsAppPanel() {
   
   // ===== CONFIG =====
-  const socketUrl = "https://kaapav.chickenkiller.com";           // main customer chat
-  const internalSocketUrl = "https://kaapav.chickenkiller.com"; // internal agent chat
-  const apiBase = "https://kaapav.chickenkiller.com";                  // REST base
+  // === ENV constants ===
+const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://kaapav.is-a.dev/socket";
+const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://kaapav.is-a.dev/api";
+const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
   const token = "KAAPAV_ADMIN_123";         // TODO: replace with real JWT
   const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
@@ -170,19 +171,29 @@ export default function AdminWhatsAppPanel() {
 
     sock.on("incoming_message", (m) => {
       const nm = normalizeMsg(m, "in");
-      setMessages((prev) => [...prev, nm]);
+      setMessages(prev => [...prev, { ...m, direction: "in" }]);
       setIsCustomerTyping(false);
       safeRunSentiment(nm);
       if (autoAssist) { safeSuggest(nm); safeLeadScore(nm); }
     });
 
-    sock.on("outgoing_message", (m) => setMessages((prev) => [...prev, normalizeMsg(m, "out")]));
+    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }]);
 
+    sock.on("session_messages", (list = []) => {
+  setMessages(list.map((m) => ({
+    text: m.text || m.message?.text || "",
+    from: m.from || (m.direction === "out" ? "admin" : undefined),
+    direction: m.direction || (m.from === "admin" ? "out" : "in"),
+    ts: m.ts || m.createdAt || Date.now(),
+  })));
+});
+    
     sock.on("typing", () => {
       setIsCustomerTyping(true);
       clearTimeout(typingTimeout.current);
       typingTimeout.current = setTimeout(() => setIsCustomerTyping(false), 2500);
     });
+// session messages bulk history
 
     // Load KPI embed URL (optional)
     (async () => {
@@ -309,14 +320,18 @@ export default function AdminWhatsAppPanel() {
     } catch {}
   };
 
-  const sendMessage = () => {
-    if (!composer.trim() || !selected) return;
-    const payload = { to: selected, text: composer };
-    if (!connected) { enqueueOutbox(payload); }
-    socketRef.current?.emit("admin_send_message", payload);
-    setMessages((prev) => [...prev, normalizeMsg({ ...payload, from: "admin" }, "out")]);
-    setComposer("");
-  };
+ const sendMessage = () => {
+  const text = (composerText || "").trim();
+  if (!text || !selectedSession) return;
+  const msg = { to: selectedSession, text };
+  socketRef.current?.emit("admin_send_message", msg);
+  setMessages(prev => [
+    ...prev,
+    { ...msg, from: "admin", direction: "out", ts: Date.now() },
+  ]);
+  setComposerText("");
+};
+
 
   const uploadMedia = async (file) => {
     if (!file || !selected) return;
@@ -523,7 +538,11 @@ export default function AdminWhatsAppPanel() {
             {filteredSessions.map((s) => (
               <div key={s.userId}
                    className={`px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${selected===s.userId? 'bg-gray-50 dark:bg-gray-800' : ''}`}
-                   onClick={()=>setSelected(s.userId)}>
+                  onClick={() => {
+  setSelectedSession(s.userId);
+  socketRef.current?.emit("fetch_session_messages", s.userId);
+  setShowSessionsPanel(false);
+}}
                 <div className="flex items-center justify-between">
                   <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
                   {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
