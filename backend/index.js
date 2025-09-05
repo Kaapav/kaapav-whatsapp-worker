@@ -1,8 +1,11 @@
 // File: index.js
-// KAAPAV WhatsApp Bot (10/10)
-// Webhook + sessions (Mongo optional) + menu routing
-// Socket.IO admin chat + message history
-// Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
+// KAAPAV WhatsApp Bot — Revised (Mongo + Redis + BullMQ + Fixes)
+// - Mongo (sessions+messages)
+// - Redis (session cache, idempotency, keep last 50 msgs)
+// - Optional BullMQ for follow-ups/retries (uses Redis)
+// - Socket.IO admin chat + message history
+// - Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
+// - Bug fixes: double routes, undefined var, message schema, robust webhook
 
 require('dotenv').config();
 const express = require('express');
@@ -13,6 +16,16 @@ const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
 const { Server } = require('socket.io');
+const Redis = require('ioredis');
+
+// Optional BullMQ
+let Queue, Worker, JobsOptions;
+try {
+  ({ Queue, Worker, JobsOptions } = require('bullmq'));
+} catch (_) {
+  /* bullmq not installed; features stay disabled unless installed */
+}
+
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
@@ -22,6 +35,7 @@ const PORT = process.env.PORT || 5555;
 const {
   VERIFY_TOKEN,
   MONGO_URI,
+  REDIS_URI,
   WA_PHONE_ID, // WhatsApp phone_number_id
   ADMIN_TOKEN,
 
@@ -43,8 +57,12 @@ const {
   KEEPALIVE_INTERVAL_MS = 300000,
   RENDER_EXTERNAL_URL,       // e.g., https://your-app.onrender.com
 
-  // basic anti-spam
-  DUPLICATE_WINDOW_MS = 20000
+  // basic anti-spam / idempotency
+  DUPLICATE_WINDOW_MS = 20000,
+
+  // BullMQ
+  BULL_ENABLED = '0',
+  FOLLOWUP_QUEUE = 'kaapav_followups'
 } = process.env;
 
 const app = express();
@@ -52,9 +70,7 @@ app.use(bodyParser.json({ limit: '2mb' }));
 app.use(cors());
 
 /**
- * ✅ 1. Redirect middleware
- * This runs BEFORE routes.
- * If user hits kaapav.is-a.dev, redirect to www.kaapav.is-a.dev
+ * ✅ 1. Redirect middleware (before routes)
  */
 app.use((req, res, next) => {
   if (req.hostname === 'kaapav.is-a.dev') {
@@ -64,26 +80,28 @@ app.use((req, res, next) => {
 });
 
 /**
- * ✅ 2. Routes
+ * ✅ 2. Health/Self-check
  */
 app.get('/', (req, res) => {
-  res.send('KAAPAV App is live! 🚀');
+  res.send('✅ Kaapav WhatsApp Worker is alive!');
+});
+
+app.get('/test/selfcheck', async (req, res) => {
+  res.status(200).json({ ok: true, status: 'alive', timestamp: Date.now() });
 });
 
 // ====== HTTP + Socket.IO ======
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
-// attach socket to buttonHandler (no redundant re-require)
-try {
-  if (typeof setSocket === 'function') {
-    setSocket(io);
-    console.log('✅ Socket wired to buttonHandler via setSocket(io)');
-  } else {
-    console.error('❌ setSocket is not a function on buttonHandler export');
-  }
-} catch (err) {
-  console.error('❌ Error while calling setSocket:', err && err.stack ? err.stack : err);
+// ====== Redis ======
+let redis = null;
+if (REDIS_URI) {
+  redis = new Redis(REDIS_URI, { maxRetriesPerRequest: null });
+  redis.on('connect', () => console.log('✅ Redis connected'));
+  redis.on('error', (e) => console.warn('⚠️ Redis error:', e.message));
+} else {
+  console.warn('⚠️ REDIS_URI not set — Redis features disabled.');
 }
 
 // ====== Mongo Models (optional but recommended) ======
@@ -96,9 +114,8 @@ async function initMongo() {
     return;
   }
   try {
-    // ✅ Force DB to "kaapav"
-    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB || "kaapav" });
-    console.log(`✅ MongoDB connected to DB: ${process.env.MONGO_DB || "kaapav"}`);
+    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB || 'kaapav' });
+    console.log(`✅ MongoDB connected to DB: ${process.env.MONGO_DB || 'kaapav'}`);
 
     const sessionSchema = new mongoose.Schema({
       userId: { type: String, index: true, unique: true },
@@ -111,9 +128,7 @@ async function initMongo() {
         orderId: String,
         attributes: Object
       },
-      counters: {
-        interactions: { type: Number, default: 0 }
-      },
+      counters: { interactions: { type: Number, default: 0 } },
       lastTenMessages: { type: [String], default: [] },
       updatedAt: { type: Date, default: Date.now }
     });
@@ -121,6 +136,7 @@ async function initMongo() {
 
     const messageSchema = new mongoose.Schema({
       userId: { type: String, index: true },
+      phone: { type: String }, // ✅ ensure phone is stored
       direction: { type: String, enum: ['in', 'out'], default: 'in' },
       type: String,
       text: String,
@@ -130,34 +146,96 @@ async function initMongo() {
       name: String
     });
     MessageModel = mongoose.models.Message || mongoose.model('Message', messageSchema, 'messages');
-
   } catch (e) {
     console.error('❌ Mongo init error:', e.message);
   }
 }
+initMongo();
 
+// attach socket to buttonHandler (no redundant re-require)
+try {
+  if (typeof setSocket === 'function') {
+    setSocket(io);
+    console.log('✅ Socket wired to buttonHandler via setSocket(io)');
+  } else {
+    console.error('❌ setSocket is not a function on buttonHandler export');
+  }
+} catch (err) {
+  console.error('❌ Error while calling setSocket:', err?.stack || err);
+}
 
-// ====== In-memory session & idempotency fallback ======
-const sessions = {};
-const processedMessageIds = new Map(); // messageId -> timestamp
+// ====== In-memory fallback (when Redis missing) ======
+const memSessions = {}; // local cache if Redis absent
 
-function isDuplicateMessage(messageId) {
+// ====== Helpers: Idempotency (prefer Redis) ======
+async function isDuplicateMessage(messageId) {
   if (!messageId) return false;
-  const now = Date.now();
-  const last = processedMessageIds.get(messageId);
-  if (last && now - last < Number(DUPLICATE_WINDOW_MS || 20000)) return true;
-  processedMessageIds.set(messageId, now);
-  if (processedMessageIds.size > 5000) {
-    for (const [k, v] of processedMessageIds) {
-      if (now - v > 5 * 60 * 1000) processedMessageIds.delete(k);
+  const key = `dedupe:${messageId}`;
+  const ttlSec = Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000) || 20;
+  if (redis) {
+    try {
+      const set = await redis.set(key, '1', 'EX', ttlSec, 'NX');
+      return set !== 'OK'; // if not OK, already exists → duplicate
+    } catch (e) {
+      console.warn('⚠️ Redis dedupe fail; falling back:', e.message);
     }
+  }
+  // memory fallback
+  if (!isDuplicateMessage._map) isDuplicateMessage._map = new Map();
+  const m = isDuplicateMessage._map;
+  const now = Date.now();
+  const last = m.get(messageId);
+  if (last && now - last < Number(DUPLICATE_WINDOW_MS)) return true;
+  m.set(messageId, now);
+  // cleanup
+  if (m.size > 5000) {
+    for (const [k, v] of m) if (now - v > 5 * 60 * 1000) m.delete(k);
   }
   return false;
 }
 
+// ====== Sessions (Redis first) ======
+async function loadSession(userId) {
+  if (!userId) return null;
+  const def = {
+    userId,
+    lastMenu: 'main',
+    meta: { greetingSent: false, phone: userId },
+    counters: { interactions: 0 },
+    lastTenMessages: [],
+    updatedAt: new Date()
+  };
+
+  if (redis) {
+    const raw = await redis.get(`session:${userId}`);
+    if (raw) return JSON.parse(raw);
+  } else if (memSessions[userId]) {
+    return memSessions[userId];
+  }
+
+  if (SessionModel) {
+    try {
+      const doc = await SessionModel.findOne({ userId }).lean();
+      if (doc) {
+        if (redis) await redis.set(`session:${userId}`, JSON.stringify(doc), 'EX', 3600);
+        else memSessions[userId] = doc;
+        return doc;
+      }
+    } catch (e) { console.warn('⚠️ session load error:', e.message); }
+  }
+
+  if (SessionModel) {
+    try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
+  }
+  if (redis) await redis.set(`session:${userId}`, JSON.stringify(def), 'EX', 3600);
+  else memSessions[userId] = def;
+  try { io.to('admin').emit('session_update', def); } catch {}
+  return def;
+}
+
 async function upsertSession(userId, patch = {}) {
   const now = new Date();
-  const existing = sessions[userId] || {};
+  const existing = await loadSession(userId);
   const mergedMeta = { ...(existing.meta || {}), ...(patch.meta || {}) };
   const mergedCounters = { ...(existing.counters || {}), ...(patch.counters || {}) };
   const lastTenMessages = patch.lastTenMessages || existing.lastTenMessages || [];
@@ -170,48 +248,36 @@ async function upsertSession(userId, patch = {}) {
     updatedAt: now,
     userId
   };
-  sessions[userId] = newObj;
 
   if (SessionModel) {
-    try {
-      await SessionModel.updateOne({ userId }, { $set: newObj }, { upsert: true });
-    } catch (e) {
-      console.warn('⚠️ session upsert mongo error:', e.message);
-    }
+    try { await SessionModel.updateOne({ userId }, { $set: newObj }, { upsert: true }); } catch (e) { console.warn('⚠️ session upsert mongo error:', e.message); }
   }
+  if (redis) await redis.set(`session:${userId}`, JSON.stringify(newObj), 'EX', 3600);
+  else memSessions[userId] = newObj;
 
   try { io.to('admin').emit('session_update', newObj); } catch {}
   return newObj;
 }
 
-async function loadSession(userId) {
-  if (!userId) return null;
-  if (sessions[userId]) return sessions[userId];
-  if (SessionModel) {
-    try {
-      const doc = await SessionModel.findOne({ userId }).lean();
-      if (doc) { sessions[userId] = doc; return doc; }
-    } catch (e) { console.warn('⚠️ session load error:', e.message); }
-  }
-  const def = {
-    userId,
-    lastMenu: 'main',
-    meta: { greetingSent: false, phone: userId },
-    counters: { interactions: 0 },
-    lastTenMessages: [],
-    updatedAt: new Date()
-  };
-  sessions[userId] = def;
-  if (SessionModel) {
-    try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
-  }
-  try { io.to('admin').emit('session_update', def); } catch {}
-  return def;
+// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
+async function pushRedisMessage(userId, obj) {
+  if (!redis) return;
+  const key = `msgs:${userId}`;
+  await redis.rpush(key, JSON.stringify(obj));
+  await redis.ltrim(key, -50, -1);
+  await redis.expire(key, 7 * 24 * 3600); // keep hot cache a week
+}
+
+async function getCachedMessages(userId) {
+  if (!redis) return [];
+  const key = `msgs:${userId}`;
+  const arr = await redis.lrange(key, 0, -1);
+  return arr.map((s) => JSON.parse(s));
 }
 
 async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
-    // try to load session for name/phone
+    // Try to load session for name/phone
     let session = null;
     if (!name) {
       try { session = await loadSession(userId); } catch {}
@@ -219,14 +285,14 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
 
     const obj = {
       userId,
+      phone: session?.meta?.phone || userId,
       direction,
       type: type || 'text',
       text: text || '',
       payload: payload || null,
       createdAt: new Date(),
       messageId,
-      name: name || session?.meta?.name || null,
-      phone: session?.meta?.phone || userId  // ✅ always save phone
+      name: name || session?.meta?.name || null
     };
 
     if (MessageModel) {
@@ -238,20 +304,18 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
       }
     }
 
-    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text}`);
+    // Cache in Redis (last 50)
+    await pushRedisMessage(userId, obj);
 
-    try {
-      io.to('admin').emit('message_saved', obj);
-    } catch (err) {
-      console.warn("⚠️ socket emit error in saveMessage:", err.message);
+    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text || type}`);
+
+    try { io.to('admin').emit('message_saved', obj); } catch (err) {
+      console.warn('⚠️ socket emit error in saveMessage:', err.message);
     }
-
   } catch (e) {
     console.warn('⚠️ saveMessage error', e.message);
   }
 }
-
-
 
 // ====== Optional Integrations (Sheets / CRM / n8n / GitHub) ======
 let sheetsClient = null;
@@ -303,11 +367,28 @@ async function logGithubIssue(title, body) {
     await axios.post(
       `https://api.github.com/repos/${GITHUB_REPO}/issues`,
       { title, body },
-      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github+json' } }
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' } }
     );
   } catch (e) {
     console.warn('⚠️ GitHub issue log failed:', e.message);
   }
+}
+
+// ====== BullMQ (optional) ======
+let followupQueue = null;
+if (BULL_ENABLED === '1' && Queue && redis) {
+  followupQueue = new Queue(FOLLOWUP_QUEUE, { connection: redis });
+  new Worker(FOLLOWUP_QUEUE, async (job) => {
+    const { to, text } = job.data;
+    const waRes = await sendMessage.sendText(to, text);
+    await saveMessage(to, 'out', 'text', text, { raw: waRes }, waRes?.messages?.[0]?.id || `out_${Date.now()}`);
+  }, { connection: redis });
+  console.log('✅ BullMQ follow-up worker active');
+}
+
+async function scheduleFollowUp(to, text, delayMs = 3600000) { // default 1h later
+  if (!followupQueue) return;
+  await followupQueue.add('followup', { to, text }, { delay: delayMs });
 }
 
 // ====== Socket.IO admin real-time handlers ======
@@ -327,7 +408,9 @@ io.on('connection', async (socket) => {
         const docs = await SessionModel.find().sort({ updatedAt: -1 }).limit(200).lean();
         socket.emit('sessions_snapshot', docs);
       } else {
-        socket.emit('sessions_snapshot', Object.values(sessions).sort((a,b)=> (a.updatedAt < b.updatedAt ? 1 : -1)));
+        const vals = Object.values(memSessions);
+        vals.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+        socket.emit('sessions_snapshot', vals);
       }
     } catch (e) {
       socket.emit('admin_error', { error: 'failed_fetch_sessions', details: e.message });
@@ -336,6 +419,8 @@ io.on('connection', async (socket) => {
     socket.on('fetch_session_messages', async (userId) => {
       if (!userId) return socket.emit('session_messages', []);
       try {
+        const cached = await getCachedMessages(userId);
+        if (cached.length) return socket.emit('session_messages', cached);
         if (MessageModel) {
           const msgs = await MessageModel.find({ userId }).sort({ createdAt: -1 }).limit(200).lean();
           socket.emit('session_messages', msgs);
@@ -347,44 +432,20 @@ io.on('connection', async (socket) => {
       }
     });
 
- socket.on('admin_send_message', async ({ to, text }) => {
-  if (!to || !text) {
-    return socket.emit('admin_send_error', { error: 'missing_to_or_text' });
-  }
-
-  try {
-    // Send message via WA Cloud API
-    const waRes = await sendMessage.sendText(to, text);
-
-    // Extract WA messageId if returned, else fallback to timestamp
-    const msgId = waRes?.messages?.[0]?.id || `out_${Date.now()}`;
-
-    // Save outgoing message in DB
-    await saveMessage(
-      to,
-      'out',            // direction
-      'text',           // type
-      text,             // content
-      { raw: waRes },   // store WA API response
-      msgId          ,// unique id
-      name
-    );
-
-    // Emit to cockpit UI
-    io.to('admin').emit('outgoing_message', {
-      to,
-      type: 'text',
-      text,
-      ts: Date.now(),
-      direction: 'out',
-      id: msgId,
+    socket.on('admin_send_message', async ({ to, text }) => {
+      if (!to || !text) {
+        return socket.emit('admin_send_error', { error: 'missing_to_or_text' });
+      }
+      try {
+        const waRes = await sendMessage.sendText(to, text);
+        const msgId = waRes?.messages?.[0]?.id || `out_${Date.now()}`;
+        await saveMessage(to, 'out', 'text', text, { raw: waRes }, msgId, null);
+        io.to('admin').emit('outgoing_message', { to, type: 'text', text, ts: Date.now(), direction: 'out', id: msgId });
+      } catch (e) {
+        console.error('Admin send error:', e);
+        socket.emit('admin_send_error', { error: e.message || String(e) });
+      }
     });
-  } catch (e) {
-    console.error('Admin send error:', e);
-    socket.emit('admin_send_error', { error: e.message || String(e) });
-  }
-});
-
 
     socket.on('admin_send_buttons', async (payload) => {
       const { to, bodyText, buttons, footerText } = payload || {};
@@ -393,14 +454,13 @@ io.on('connection', async (socket) => {
         if (typeof sendMessage.sendReplyButtons !== 'function') {
           return socket.emit('admin_send_error', { error: 'sendReplyButtons not available in sendMessage' });
         }
-        await sendMessage.sendReplyButtons(to, bodyText || '', buttons.slice(0,3), footerText);
+        await sendMessage.sendReplyButtons(to, bodyText || '', buttons.slice(0, 3), footerText);
         await saveMessage(to, 'out', 'interactive', bodyText || '', { buttons });
         io.to('admin').emit('outgoing_message', { to, type: 'interactive', payload: { bodyText, buttons }, ts: Date.now(), direction: 'out' });
       } catch (e) {
         socket.emit('admin_send_error', { error: e.message || String(e) });
       }
     });
-
   } catch (outerErr) {
     try { socket.emit('admin_error', { error: outerErr.message || String(outerErr) }); } catch {}
     socket.disconnect(true);
@@ -418,9 +478,7 @@ const MENU_ACTIONS = {
 };
 
 // ====== Text processing ======
-function normalizeText(s) {
-  return (s || '').trim();
-}
+function normalizeText(s) { return (s || '').trim(); }
 
 async function processText(from, text, session, messageId) {
   const raw = normalizeText(text);
@@ -428,35 +486,18 @@ async function processText(from, text, session, messageId) {
 
   // track lastTenMessages & counters
   const lastTen = (session.lastTenMessages || []).slice(-9).concat(raw);
-  await upsertSession(from, {
-    counters: { interactions: (session.counters?.interactions || 0) + 1 },
-    lastTenMessages: lastTen
-  });
+  await upsertSession(from, { counters: { interactions: (session.counters?.interactions || 0) + 1 }, lastTenMessages: lastTen });
 
   // capture lead hints
   const emailMatch = raw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
   const phoneMatch = raw.match(/(?:\+?\d{1,3})?[ -]?\d{10,13}/);
-  const nameHint = raw.toLowerCase().startsWith('my name is ') ? raw.slice(11).trim().split(/\s+/).slice(0,3).join(' ') : null;
+  const nameHint = raw.toLowerCase().startsWith('my name is ') ? raw.slice(11).trim().split(/\s+/).slice(0, 3).join(' ') : null;
   if (emailMatch || phoneMatch || nameHint) {
-    await upsertSession(from, {
-      meta: {
-        ...(emailMatch ? { email: emailMatch[0] } : {}),
-        ...(phoneMatch ? { phone: phoneMatch[0] } : {}),
-        ...(nameHint ? { name: nameHint } : {})
-      }
-    });
+    await upsertSession(from, { meta: { ...(emailMatch ? { email: emailMatch[0] } : {}), ...(phoneMatch ? { phone: phoneMatch[0] } : {}), ...(nameHint ? { name: nameHint } : {}) } });
   }
 
   // GOOGLE SHEETS + CRM/N8N + GitHub logging (async)
-  const sheetRow = [
-    new Date().toISOString(),
-    from,
-    raw,
-    session.lastMenu || 'main',
-    session.meta?.name || '',
-    session.meta?.email || '',
-    session.meta?.phone || from
-  ];
+  const sheetRow = [ new Date().toISOString(), from, raw, session.lastMenu || 'main', session.meta?.name || '', session.meta?.email || '', session.meta?.phone || from ];
   appendToSheets(sheetRow).catch(()=>{});
   const payload = { userId: from, text: raw, lastMenu: session.lastMenu, meta: session.meta, counters: session.counters };
   postWebhook(CRM_WEBHOOK_URL, payload).catch(()=>{});
@@ -547,32 +588,19 @@ app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
     const msgId = message.id;
     if (!from) return;
 
-    // ❌ Removed echo-skip that was dropping all inbound messages
-    // Inbound events always carry your WA phone_number_id in metadata, so never skip by that.
-
     // Idempotency guard
-    if (isDuplicateMessage(msgId)) {
+    if (await isDuplicateMessage(msgId)) {
       console.log(`⏭️ duplicate message skipped: ${msgId}`);
       return;
     }
 
     const session = await loadSession(from);
 
-    // emit incoming for admin
-     const msgObj = {
-      type: message.type,
-      text: message.text?.body || null,
-      interactive: message.interactive || null,
-    };
-
+    // emit incoming for admin (basic shape)
+    const msgObj = { type: message.type, text: message.text?.body || null, interactive: message.interactive || null };
     await saveMessage(from, 'in', message.type, msgObj.text, { raw: message }, msgId);
+    io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() });
 
-    io.to('admin').emit('incoming_message', {
-      from,
-      message: msgObj,
-      ts: Date.now(),
-    });
-    
     if (message.type === 'interactive') {
       const reply = message.interactive?.button_reply || message.interactive?.list_reply || {};
       const rawId = (reply?.id || reply?.title || reply?.row_id || '').toString().trim();
@@ -666,52 +694,21 @@ app.post('/test/sendMain', async (req, res) => {
   }
 });
 
-// self-check endpoint (simple diagnostics)
-app.get('/test/selfcheck', async (req, res) => {
-  const checks = {
-    env: {
-      PORT,
-      VERIFY_TOKEN: !!VERIFY_TOKEN,
-      MONGO_URI: !!MONGO_URI,
-      WA_PHONE_ID: !!WA_PHONE_ID,
-      ADMIN_TOKEN: !!ADMIN_TOKEN,
-      SHEETS_ENABLED: !!SHEETS_ENABLED,
-      GOOGLE_SHEET_ID: !!GOOGLE_SHEET_ID
-    },
-    sendMessageExports: Object.keys(sendMessage || {}).slice(0, 50),
-    hasButtonHandler: typeof handleButtonClick === 'function',
-    mongoConnected: !!SessionModel && !!MessageModel
-  };
-  res.json(checks);
-});
-// start server + keepalive
-// Health & keepalive routes
-app.get("/", (req, res) => {
-  res.send("✅ Kaapav WhatsApp Worker is alive!");
+// ====== Start server ======
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
 
-app.get("/test/selfcheck", (req, res) => {
-  res.status(200).json({
-    ok: true,
-    status: "alive",
-    timestamp: Date.now()
-  });
-});
-
-// Start server
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
-
-// Keepalive ping (to prevent Render idling)
+// ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
-  console.log("🔄 Keepalive ping...");
-  if (RENDER_EXTERNAL_URL) {
-    try {
-      await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
-    } catch (err) {
-      console.warn("Keepalive ping failed:", err.message || err);
-    }
-  }
-}, Number(KEEPALIVE_INTERVAL_MS || 300000)); // default 5 min
+  if (!RENDER_EXTERNAL_URL) return;
+  try { await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 }); }
+  catch (err) { console.warn('Keepalive ping failed:', err.message || err); }
+}, Number(KEEPALIVE_INTERVAL_MS || 300000));
 
+// ====== Graceful shutdown ======
+function shutdown(sig) {
+  console.log(`\n${sig} received — shutting down...`);
+  server.close(() => process.exit(0));
+}
+['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
