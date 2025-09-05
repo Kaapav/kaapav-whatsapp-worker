@@ -35,50 +35,7 @@ import {
  */
 
 export default function AdminWhatsAppPanel() {
-  const [theme, setTheme] = useState("light");
-
-  return (
-    <div className={`min-h-screen ${theme === "light" ? "bg-white text-black" : "bg-zinc-900 text-white"} p-6`}>
-      {/* Header */}
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-serif font-semibold gold-text">KAAPAV Concierge</h1>
-          <p className="text-sm opacity-70">Admin WhatsApp Panel</p>
-        </div>
-        <button
-          onClick={() => setTheme(t => (t === "light" ? "dark" : "light"))}
-          className="btn btn-outline"
-        >
-          {theme === "light" ? "Dark" : "Light"}
-        </button>
-      </header>
-
-      {/* Controls */}
-      <div className="flex gap-3 mb-4">
-        <button className="btn btn-outline">Sessions</button>
-        <button className="btn btn-gold">Actions</button>
-      </div>
-
-      {/* Status */}
-      <div className="space-y-1">
-        <div>No session selected</div>
-        <div>Disconnected</div>
-        <div>No messages yet</div>
-      </div>
-
-      {/* Composer */}
-      <div className="mt-4 flex gap-2">
-        <input
-          className="border rounded-full px-4 py-2 flex-1 focus:ring-2 focus:ring-gold"
-          placeholder="Select a session first"
-          disabled
-        />
-        <button className="btn btn-gold" disabled>Send</button>
-      </div>
-    </div>
-  );
-}
-
+  
   // ===== CONFIG =====
   const socketUrl = "https://kaapav.chickenkiller.com";           // main customer chat
   const internalSocketUrl = "https://kaapav.chickenkiller.com"; // internal agent chat
