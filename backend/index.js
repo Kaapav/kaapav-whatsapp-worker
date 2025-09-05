@@ -96,8 +96,9 @@ async function initMongo() {
     return;
   }
   try {
-    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB || undefined });
-    console.log('✅ MongoDB connected');
+    // ✅ Force DB to "kaapav"
+    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB || "kaapav" });
+    console.log(`✅ MongoDB connected to DB: ${process.env.MONGO_DB || "kaapav"}`);
 
     const sessionSchema = new mongoose.Schema({
       userId: { type: String, index: true, unique: true },
@@ -116,7 +117,7 @@ async function initMongo() {
       lastTenMessages: { type: [String], default: [] },
       updatedAt: { type: Date, default: Date.now }
     });
-    SessionModel = mongoose.models.Session || mongoose.model('Session', sessionSchema);
+    SessionModel = mongoose.models.Session || mongoose.model('Session', sessionSchema, 'sessions');
 
     const messageSchema = new mongoose.Schema({
       userId: { type: String, index: true },
@@ -125,15 +126,16 @@ async function initMongo() {
       text: String,
       payload: Object,
       createdAt: { type: Date, default: Date.now },
-      messageId: { type: String, index: true }, // for idempotency
-      name: String 
+      messageId: { type: String, index: true },
+      name: String
     });
-    MessageModel = mongoose.models.Message || mongoose.model('Message', messageSchema);
+    MessageModel = mongoose.models.Message || mongoose.model('Message', messageSchema, 'messages');
+
   } catch (e) {
     console.error('❌ Mongo init error:', e.message);
   }
 }
-initMongo();
+
 
 // ====== In-memory session & idempotency fallback ======
 const sessions = {};
