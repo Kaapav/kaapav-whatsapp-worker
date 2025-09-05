@@ -437,13 +437,12 @@ if (cached && cached.length) {
   const msgs = cached.map(m => JSON.parse(m));
   return socket.emit('session_messages', msgs);
 }
-     } else {
-          socket.emit('session_messages', []);
-        }
-      } catch (e) {
-        socket.emit('admin_error', { error: 'fetch_messages_failed', details: e.message });
-      }
-    });
+    // fallback empty array
+    socket.emit('session_messages', []);
+  } catch (e) {
+    socket.emit('admin_error', { error: 'fetch_messages_failed', details: e.message });
+  }
+});
 
     socket.on('admin_send_message', async ({ to, text }) => {
       if (!to || !text) {
