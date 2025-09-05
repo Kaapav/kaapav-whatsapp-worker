@@ -176,7 +176,8 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
       if (autoAssist) { safeSuggest(nm); safeLeadScore(nm); }
     });
 
-    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }]);
+    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }])
+      );
 
     sock.on("session_messages", (list = []) => {
   setMessages(list.map((m) => ({
