@@ -722,6 +722,12 @@ setInterval(async () => {
 function shutdown(sig) {
   console.log(`\n${sig} received — shutting down...`);
 
+  // Failsafe: force exit after 5s if cleanup hangs
+  setTimeout(() => {
+    console.error('⏳ Force exiting after 5s timeout');
+    process.exit(1);
+  }, 5000);
+
   // 1. Close MongoDB
   if (mongoose.connection.readyState === 1) {
     mongoose.connection.close(false, () => {
@@ -729,7 +735,7 @@ function shutdown(sig) {
     });
   }
 
-  // 2. Close Redis (if using Upstash Redis client)
+  // 2. Close Redis
   if (global.redis && typeof global.redis.quit === 'function') {
     global.redis.quit().then(() => {
       console.log('✅ Redis disconnected');
@@ -751,5 +757,3 @@ function shutdown(sig) {
     process.exit(0);
   });
 }
-
-['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
