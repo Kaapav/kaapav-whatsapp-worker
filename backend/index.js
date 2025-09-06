@@ -721,6 +721,35 @@ setInterval(async () => {
 // ====== Graceful shutdown ======
 function shutdown(sig) {
   console.log(`\n${sig} received — shutting down...`);
-  server.close(() => process.exit(0));
+
+  // 1. Close MongoDB
+  if (mongoose.connection.readyState === 1) {
+    mongoose.connection.close(false, () => {
+      console.log('✅ MongoDB disconnected');
+    });
+  }
+
+  // 2. Close Redis (if using Upstash Redis client)
+  if (global.redis && typeof global.redis.quit === 'function') {
+    global.redis.quit().then(() => {
+      console.log('✅ Redis disconnected');
+    }).catch(err => {
+      console.error('❌ Redis shutdown error:', err.message);
+    });
+  }
+
+  // 3. Close Socket.IO
+  if (io && typeof io.close === 'function') {
+    io.close(() => {
+      console.log('✅ Socket.IO server closed');
+    });
+  }
+
+  // 4. Close HTTP server last
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
 }
+
 ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
