@@ -735,14 +735,8 @@ function shutdown(sig) {
     });
   }
 
-  // 2. Close Redis
-  if (global.redis && typeof global.redis.quit === 'function') {
-    global.redis.quit().then(() => {
-      console.log('✅ Redis disconnected');
-    }).catch(err => {
-      console.error('❌ Redis shutdown error:', err.message);
-    });
-  }
+  // 2. Redis (Upstash REST client has nothing to close)
+  console.log('ℹ️ Upstash Redis REST client is stateless — no shutdown needed');
 
   // 3. Close Socket.IO
   if (io && typeof io.close === 'function') {
@@ -757,3 +751,5 @@ function shutdown(sig) {
     process.exit(0);
   });
 }
+
+['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
