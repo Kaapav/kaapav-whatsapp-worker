@@ -202,7 +202,7 @@ async function loadSession(userId) {
   } catch {}
 
   // fallback → in-memory
-  if (sessions[userId]) return sessions[userId];
+  if (memSessions[userId]) return memSessions[userId];
 
   // fallback → Mongo
   if (SessionModel) {
@@ -228,7 +228,7 @@ async function loadSession(userId) {
     updatedAt: new Date()
   };
 
-  sessions[userId] = def;
+  memsessions[userId] = def;
   if (SessionModel) {
     try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
   }
