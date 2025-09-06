@@ -280,18 +280,17 @@ async function getCachedMessages(userId) {
   return arr.map((s) => JSON.parse(s));
 }
 
+// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
 async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
-    // Try to load session for name/phone
+    // ensure session is loaded for phone/name enrichment
     let session = null;
-    if (!name) {
-      try { session = await loadSession(userId); } catch {}
-    }
+    try { session = await loadSession(userId); } catch {}
 
     const obj = {
       userId,
       phone: session?.meta?.phone || userId,
-      direction,
+      direction,                          // "in" or "out"
       type: type || 'text',
       text: text || '',
       payload: payload || null,
@@ -300,6 +299,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
       name: name || session?.meta?.name || null
     };
 
+    // ✅ Save to Mongo with idempotency check
     if (MessageModel) {
       if (messageId) {
         const exists = await MessageModel.findOne({ messageId }).lean();
@@ -308,6 +308,23 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
         await MessageModel.create(obj);
       }
     }
+
+    // ✅ Save to Redis cache (last 50 per user)
+    if (redis) {
+      await redis.rpush(`msgs:${userId}`, JSON.stringify(obj));
+      await redis.ltrim(`msgs:${userId}`, -50, -1);
+      await redis.expire(`msgs:${userId}`, 7 * 24 * 3600);
+    }
+
+    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text || type}`);
+
+    // ✅ Broadcast to admin dashboard
+    try { io.to('admin').emit('message_saved', obj); } catch {}
+  } catch (e) {
+    console.warn('⚠️ saveMessage error', e.message);
+  }
+}
+
 async function cacheMessage(userId, msg) {
   try {
     await redis.lpush(`msgs:${userId}`, JSON.stringify(msg));
