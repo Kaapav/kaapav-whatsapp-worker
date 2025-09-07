@@ -170,7 +170,7 @@ async function isDuplicateMessage(messageId) {
   // Redis check
   if (redis) {
     try {
-      const exists = await redis.set(`dup:${messageId}`, "1", { ex: Number(DUPLICATE_WINDOW_MS || 20), nx: true });
+      const exists = await redis.set(`dup:${messageId}`, "1", {ex: Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000), nx: true });
       return !exists; // true = duplicate
     } catch (e) {
       console.warn("⚠️ Redis duplicate check failed:", e.message);
@@ -228,7 +228,7 @@ async function loadSession(userId) {
     updatedAt: new Date()
   };
 
-  memsessions[userId] = def;
+  memSessions[userId] = def;
   if (SessionModel) {
     try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
   }
@@ -264,7 +264,7 @@ async function upsertSession(userId, patch = {}) {
   return newObj;
 }
 
-// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
+/// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
 async function pushRedisMessage(userId, obj) {
   if (!redis) return;
   const key = `msgs:${userId}`;
@@ -280,7 +280,6 @@ async function getCachedMessages(userId) {
   return arr.map((s) => JSON.parse(s));
 }
 
-// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
 async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
     // ensure session is loaded for phone/name enrichment
@@ -310,11 +309,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
     }
 
     // ✅ Save to Redis cache (last 50 per user)
-    if (redis) {
-      await redis.rpush(`msgs:${userId}`, JSON.stringify(obj));
-      await redis.ltrim(`msgs:${userId}`, -50, -1);
-      await redis.expire(`msgs:${userId}`, 7 * 24 * 3600);
-    }
+    await pushRedisMessage(userId, obj);
 
     console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text || type}`);
 
@@ -324,6 +319,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
     console.warn('⚠️ saveMessage error', e.message);
   }
 }
+
 
 async function cacheMessage(userId, msg) {
   try {
