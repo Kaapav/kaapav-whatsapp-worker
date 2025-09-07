@@ -170,7 +170,11 @@ async function isDuplicateMessage(messageId) {
   // Redis check
   if (redis) {
     try {
-      const exists = await redis.set(`dup:${messageId}`, "1", {ex: Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000), nx: true });
+      const exists = await redis.set(
+        `dup:${messageId}`,
+        "1",
+        { ex: Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000), nx: true }
+      );
       return !exists; // true = duplicate
     } catch (e) {
       console.warn("⚠️ Redis duplicate check failed:", e.message);
@@ -191,7 +195,7 @@ async function isDuplicateMessage(messageId) {
   }
   return false;
 }
-// ====== Sessions (Redis first) ======
+
 async function loadSession(userId) {
   if (!userId) return null;
 
@@ -210,7 +214,7 @@ async function loadSession(userId) {
       const doc = await SessionModel.findOne({ userId }).lean();
       if (doc) {
         await redis.set(`session:${userId}`, JSON.stringify(doc), { ex: 86400 }); // cache 1 day
-        sessions[userId] = doc;
+        memSessions[userId] = doc; // ✅ fixed typo
         return doc;
       }
     } catch (e) {
@@ -236,7 +240,6 @@ async function loadSession(userId) {
   try { io.to('admin').emit('session_update', def); } catch {}
   return def;
 }
-
 
 async function upsertSession(userId, patch = {}) {
   const now = new Date();
