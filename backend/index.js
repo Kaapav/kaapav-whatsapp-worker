@@ -60,7 +60,7 @@ const {
   GITHUB_REPO,               // "owner/repo"
   GITHUB_LOG_ISSUES = '0',
 
-  KEEPALIVE_INTERVAL_MS = 300000,
+  KEEPALIVE_INTERVAL_MS = 600000,
   RENDER_EXTERNAL_URL,       // e.g., https://your-app.onrender.com
 
   // basic anti-spam / idempotency
@@ -732,7 +732,7 @@ setInterval(async () => {
   if (!RENDER_EXTERNAL_URL) return;
   try { await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 }); }
   catch (err) { console.warn('Keepalive ping failed:', err.message || err); }
-}, Number(KEEPALIVE_INTERVAL_MS || 300000));
+}, Number(KEEPALIVE_INTERVAL_MS || 600000));
 
 // ====== Graceful shutdown ======
 function shutdown(sig) {
