@@ -283,22 +283,43 @@ async function getCachedMessages(userId) {
   return arr.map((s) => JSON.parse(s));
 }
 
+// ========== Redis helpers ==========
+async function cacheMessage(userId, msg) {
+  try {
+    await redis.lpush(`msgs:${userId}`, JSON.stringify(msg));
+    await redis.ltrim(`msgs:${userId}`, 0, 49); // keep last 50
+  } catch (e) {
+    console.warn("⚠️ Redis cacheMessage failed:", e.message);
+  }
+}
+
+async function pushRedisMessage(userId, obj) {
+  try {
+    await redis.set(`lastmsg:${userId}`, JSON.stringify(obj), { ex: 86400 });
+  } catch (e) {
+    console.warn("⚠️ Redis pushRedisMessage failed:", e.message);
+  }
+}
+
+// ========== Unified saveMessage ==========
 async function saveMessage(userId, direction, type, text, payload, messageId, name) {
   try {
-    // ensure session is loaded for phone/name enrichment
+    // Ensure session is loaded for phone/name enrichment
     let session = null;
-    try { session = await loadSession(userId); } catch {}
+    try {
+      session = await loadSession(userId);
+    } catch {}
 
     const obj = {
       userId,
       phone: session?.meta?.phone || userId,
       direction,                          // "in" or "out"
-      type: type || 'text',
-      text: text || '',
+      type: type || "text",
+      text: text || "",
       payload: payload || null,
       createdAt: new Date(),
       messageId,
-      name: name || session?.meta?.name || null
+      name: name || session?.meta?.name || null,
     };
 
     // ✅ Save to Mongo with idempotency check
@@ -311,38 +332,25 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
       }
     }
 
-    // ✅ Save to Redis cache (last 50 per user)
+    // ✅ Save to Redis cache (history + latest)
+    await cacheMessage(userId, obj);
     await pushRedisMessage(userId, obj);
 
-    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text || type}`);
+    // ✅ Log
+    console.log(
+      `💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${
+        obj.text || type
+      }`
+    );
 
     // ✅ Broadcast to admin dashboard
-    try { io.to('admin').emit('message_saved', obj); } catch {}
-  } catch (e) {
-    console.warn('⚠️ saveMessage error', e.message);
-  }
-}
-
-
-async function cacheMessage(userId, msg) {
-  try {
-    await redis.lpush(`msgs:${userId}`, JSON.stringify(msg));
-    await redis.ltrim(`msgs:${userId}`, 0, 49); // keep last 50
-  } catch (e) {
-    console.warn("⚠️ Redis cacheMessage failed:", e.message);
-  }
-}
-
-    // Cache in Redis (last 50)
-    await pushRedisMessage(userId, obj);
-
-    console.log(`💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${obj.text || type}`);
-
-    try { io.to('admin').emit('message_saved', obj); } catch (err) {
-      console.warn('⚠️ socket emit error in saveMessage:', err.message);
+    try {
+      io.to("admin").emit("message_saved", obj);
+    } catch (err) {
+      console.warn("⚠️ socket emit error in saveMessage:", err.message);
     }
   } catch (e) {
-    console.warn('⚠️ saveMessage error', e.message);
+    console.warn("⚠️ saveMessage error", e.message);
   }
 }
 
