@@ -6,14 +6,13 @@
 // - Socket.IO admin chat + message history
 // - Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
 // - Bug fixes: double routes, undefined var, message schema, robust webhook
+require('dotenv').config();
 const { Redis } = require("@upstash/redis");
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -764,11 +763,20 @@ server.listen(PORT, () => {
 });
 
 // ====== Keepalive ping (to prevent Render idling) ======
+// ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
-  if (!RENDER_EXTERNAL_URL) return;
-  try { await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 }); }
-  catch (err) { console.warn('Keepalive ping failed:', err.message || err); }
-}, Number(KEEPALIVE_INTERVAL_MS || 600000));
+  if (!RENDER_EXTERNAL_URL) {
+    console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
+    return;
+  }
+  try {
+    await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
+    console.log("🔄 Keepalive ping sent");
+  } catch (err) {
+    console.warn("⚠️ Keepalive ping failed:", err.message || err);
+  }
+}, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);   // 🟢 safer parsing
+
 
 // ====== Graceful shutdown ======
 function shutdown(sig) {
