@@ -768,9 +768,10 @@ setInterval(async () => {
     console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
     return;
   }
+  const nextPing = new Date(Date.now() + (parseInt(KEEPALIVE_INTERVAL_MS) || 600000));
   try {
     await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
-    console.log("🔄 Keepalive ping sent");
+    console.log(`🔄 Keepalive ping sent | next @ ${nextPing.toLocaleTimeString()}`);
   } catch (err) {
     console.warn("⚠️ Keepalive ping failed:", err.message || err);
   }
