@@ -763,7 +763,6 @@ server.listen(PORT, () => {
 });
 
 // ====== Keepalive ping (to prevent Render idling) ======
-// ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
   if (!RENDER_EXTERNAL_URL) {
     console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
@@ -776,6 +775,16 @@ setInterval(async () => {
     console.warn("⚠️ Keepalive ping failed:", err.message || err);
   }
 }, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);   // 🟢 safer parsing
+
+// ====== Redis Keepalive (prevent Upstash auto-delete) ======
+setInterval(async () => {
+  try {
+    await redis.set("keepalive", Date.now());
+    console.log("🔄 Redis keepalive ping sent");
+  } catch (err) {
+    console.warn("⚠️ Redis keepalive failed:", err.message);
+  }
+}, 24 * 60 * 60 * 1000); // once per day
 
 
 // ====== Graceful shutdown ======
