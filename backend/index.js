@@ -768,14 +768,26 @@ setInterval(async () => {
     console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
     return;
   }
-  const nextPing = new Date(Date.now() + (parseInt(KEEPALIVE_INTERVAL_MS) || 600000));
+
+  const interval = parseInt(KEEPALIVE_INTERVAL_MS) || 600000;
+  const nextPing = new Date(Date.now() + interval);
+
+  const istFormatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+
   try {
     await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
-    console.log(`🔄 Keepalive ping sent | next @ ${nextPing.toLocaleTimeString()}`);
+    console.log(`🔄 Keepalive ping sent | next @ ${istFormatter.format(nextPing)}`);
   } catch (err) {
     console.warn("⚠️ Keepalive ping failed:", err.message || err);
   }
-}, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);   // 🟢 safer parsing
+}, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);
+
 
 // ====== Redis Keepalive (prevent Upstash auto-delete) ======
 setInterval(async () => {
