@@ -7,11 +7,20 @@
 // - Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
 // - Bug fixes: double routes, undefined var, message schema, robust webhook
 require('dotenv').config();
-const { Redis } = require("@upstash/redis");
-const redis = new Redis({
+// Upstash REST client (cache, dedupe, last-50)
+const { Redis: UpstashRedis } = require("@upstash/redis");
+const redis = new UpstashRedis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
+
+// ioredis (BullMQ requires persistent connection)
+const IORedis = require("ioredis");
+const redisBull = process.env.REDIS_URI
+  ? new IORedis(process.env.REDIS_URI, {
+      tls: { rejectUnauthorized: false }, // Upstash TLS
+    })
+  : null;
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -268,18 +277,25 @@ async function upsertSession(userId, patch = {}) {
   };
 
   if (SessionModel) {
-    try { await SessionModel.updateOne({ userId }, { $set: newObj }, { upsert: true }); } catch (e) { console.warn('⚠️ session upsert mongo error:', e.message); }
+  try {
+    await SessionModel.updateOne({ userId }, { $set: newObj }, { upsert: true });
+  } catch (e) {
+    console.warn('⚠️ session upsert mongo error:', e.message);
   }
- if (redis) {
+}
+
+// Always update memory
+memSessions[userId] = newObj;
+
+// Try Redis too
+if (redis) {
   try {
     await redis.set(`session:${userId}`, JSON.stringify(newObj), { ex: 3600 });
   } catch (e) {
     console.warn('⚠️ redis set session failed:', e.message || e);
   }
-} else memSessions[userId] = newObj;
-  try { io.to('admin').emit('session_update', newObj); } catch {}
-  return newObj;
 }
+
 
 /// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
 // ========== Redis helpers ==========
@@ -430,22 +446,36 @@ async function logGithubIssue(title, body) {
   }
 }
 
-// ====== BullMQ (optional) ======
+// ====== BullMQ (optional, requires ioredis) ======
 let followupQueue = null;
-if (BULL_ENABLED === '1' && Queue && redis) {
-  followupQueue = new Queue(FOLLOWUP_QUEUE, { connection: redis });
-  new Worker(FOLLOWUP_QUEUE, async (job) => {
-    const { to, text } = job.data;
-    const waRes = await sendMessage.sendText(to, text);
-    await saveMessage(to, 'out', 'text', text, { raw: waRes }, waRes?.messages?.[0]?.id || `out_${Date.now()}`);
-  }, { connection: redis });
+if (BULL_ENABLED === '1' && Queue && redisBull) {
+  followupQueue = new Queue(FOLLOWUP_QUEUE, { connection: redisBull });
+
+  new Worker(
+    FOLLOWUP_QUEUE,
+    async (job) => {
+      const { to, text } = job.data;
+      const waRes = await sendMessage.sendText(to, text);
+      await saveMessage(
+        to,
+        'out',
+        'text',
+        text,
+        { raw: waRes },
+        waRes?.messages?.[0]?.id || `out_${Date.now()}`
+      );
+    },
+    { connection: redisBull }
+  );
+
   console.log('✅ BullMQ follow-up worker active');
 }
 
-async function scheduleFollowUp(to, text, delayMs = 3600000) { // default 1h later
+async function scheduleFollowUp(to, text, delayMs = 3600000) {
   if (!followupQueue) return;
   await followupQueue.add('followup', { to, text }, { delay: delayMs });
 }
+
 
 // ====== Socket.IO admin real-time handlers ======
 io.on('connection', async (socket) => {
@@ -660,9 +690,9 @@ app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
     const session = await loadSession(from);
 
     // emit incoming for admin (basic shape)
-    const msgObj = { type: message.type, text: message.text?.body || null, interactive: message.interactive || null };
-    await saveMessage(from, 'in', message.type, msgObj.text, { raw: message }, msgId);
-    io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() });
+    // Just broadcast to admin; persistence handled inside processText/processInteractive
+const msgObj = { type: message.type, text: message.text?.body || null, interactive: message.interactive || null };
+io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() });
 
     if (message.type === 'interactive') {
       const reply = message.interactive?.button_reply || message.interactive?.list_reply || {};
