@@ -286,7 +286,7 @@ async function upsertSession(userId, patch = {}) {
 
 // Always update memory
 memSessions[userId] = newObj;
-
+}
 // Try Redis too
 if (redis) {
   try {
