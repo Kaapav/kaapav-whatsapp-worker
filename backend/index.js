@@ -286,7 +286,7 @@ async function upsertSession(userId, patch = {}) {
 
 // Always update memory
 memSessions[userId] = newObj;
-}
+
 // Try Redis too
 if (redis) {
   try {
@@ -309,7 +309,7 @@ async function cacheMessage(userId, msg) {
     console.warn("⚠️ Redis cacheMessage failed:", e.message);
   }
 }
-
+}
 async function pushRedisMessage(userId, obj) {
   if (!redis) return;
   try {
