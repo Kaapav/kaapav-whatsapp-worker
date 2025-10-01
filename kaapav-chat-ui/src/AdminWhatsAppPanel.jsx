@@ -26,8 +26,9 @@ export default function AdminWhatsAppPanel() {
   // ===== CONFIG =====
   // === ENV constants ===
   // Default to panel.kaapav.com so deployed panel + nginx proxy on that host works
-  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://panel.kaapav.com/socket";
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://panel.kaapav.com/socket.io";
   const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://panel.kaapav.com/api";
+  const internalSocketUrl = "wss://www.crm.kaapav.com/socket.io/internal";
   const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE ?? "https://panel.kaapav.com/webhook";
   const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
   const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
