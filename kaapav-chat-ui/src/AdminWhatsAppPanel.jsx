@@ -38,9 +38,9 @@ export default function AdminWhatsAppPanel() {
   
   // ===== CONFIG =====
   // === ENV constants ===
-const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://cockpit.kaapav.is-a.dev/socket.io";
-const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://api.kaapav.is-a.dev";
-  const n8nWebhookBase = "https://n8n.kaapav.is-a.dev/webhook";
+const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://www.crm.kaapav.com/socket";
+const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://www.crm.kaapav.com/api";
+const n8nWebhookBase = "https://www.crm.kaapav.com/webhook";
 const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
 const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
