@@ -28,7 +28,7 @@ export default function AdminWhatsAppPanel() {
   // Default to panel.kaapav.com so deployed panel + nginx proxy on that host works
   const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://panel.kaapav.com/socket.io";
   const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://panel.kaapav.com/api";
-  const internalSocketUrl = "wss://www.crm.kaapav.com/socket.io/internal";
+  cons internalSocketUrl =  import.meta.env?.VITE_INTERNAL_SOCKET_URL || "wss://www.crm.kaapav.com/socket.io/internal";
   const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE ?? "https://panel.kaapav.com/webhook";
   const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
   const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
@@ -123,10 +123,7 @@ export default function AdminWhatsAppPanel() {
   const internalSockRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeout = useRef(null);
-
-  // internal socket url (fallback to socketUrl)
-  const internalSocketUrl = import.meta.env?.VITE_INTERNAL_SOCKET_URL ?? socketUrl;
-
+  
   // ===== PostMessage listener for token (Odoo -> iframe) =====
   useEffect(() => {
     const onMessage = (ev) => {
@@ -986,7 +983,14 @@ export default function AdminWhatsAppPanel() {
                 <CardContent className="p-0 overflow-hidden">
                   {dashboardUrl ? (
                     {/* Use configured dashboardUrl or fall back to crm host so it embeds correctly when panel is hosted under CRM */}
-            <iframe title="KPI" src={dashboardUrl || "https://crm.kaapav.com/dashboard"} className="w-full h-64 border-0" />
+            <iframe
+  title="KPI"
+  src={dashboardUrl || (typeof window !== 'undefined'
+    ? `${window.location.origin}`
+    : 'https://www.crm.kaapav.com/dashboard')}
+  className="w-full h-64 border-0"
+/>
+
                   ) : (
                     <div className="p-3 text-xs opacity-70">No KPI dashboard URL configured</div>
                   )}
