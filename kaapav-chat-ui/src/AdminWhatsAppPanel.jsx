@@ -986,12 +986,7 @@ export default function AdminWhatsAppPanel() {
                 <CardContent className="p-0 overflow-hidden">
                   {dashboardUrl ? (
                     {/* Use configured dashboardUrl or fall back to crm host so it embeds correctly when panel is hosted under CRM */}
-            <iframe
-              title="KPI"
-              src={dashboardUrl || (typeof window !== 'undefined' ? `${window.location.origin}` : 'https://www.crm.kaapav.com')}
-                className="w-full h-64 border-0"
-              />
-
+            <iframe title="KPI" src={dashboardUrl || "https://crm.kaapav.com/dashboard"} className="w-full h-64 border-0" />
                   ) : (
                     <div className="p-3 text-xs opacity-70">No KPI dashboard URL configured</div>
                   )}
