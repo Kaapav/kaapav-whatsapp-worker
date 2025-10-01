@@ -88,7 +88,7 @@ app.use(cors());
  */
 app.use((req, res, next) => {
   if (req.hostname === 'kaapav.is-a.dev') {
-    return res.redirect(301, 'https://www.kaapav.is-a.dev' + req.url);
+    return res.redirect(301, 'https://www.crm.kaapav.com' + req.url);
   }
   next();
 });
