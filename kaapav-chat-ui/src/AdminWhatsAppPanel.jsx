@@ -973,7 +973,7 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
               <Card>
                 <CardContent className="p-0 overflow-hidden">
                   {dashboardUrl ? (
-                    <iframe title="KPI" src={dashboardUrl} className="w-full h-64 border-0" />
+                    <iframe title="KPI" src="https://panel.kaapav.com" className="w-full h-64 border-0" />
                   ) : (
                     <div className="p-3 text-xs opacity-70">No KPI dashboard URL configured</div>
                   )}
