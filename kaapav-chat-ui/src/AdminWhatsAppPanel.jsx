@@ -18,31 +18,19 @@ import {
 } from "lucide-react";
 
 /**
- * KAAPAV Cockpit — MAX v2 (All Planned Inserts wired as placeholders)
- * Style: shadcn/ui + Tailwind + lucide-react
- * Backends (placeholders only):
- * - POST   /csat/submit
- * - GET    /ai/shifthandover
- * - SOCKET /socket.io/internal
- * - GET    /alerts/feed
- * - POST   /followup/schedule
- * - POST   /ai/transcribe
- * - GET    /audit/logs
- * - GET    /crm/360?user=...
- * - GET    /ai/knowledge?q=...
- * - GET    /ai/upsell?user=...
- * - GET    /analytics/kpi-embed (returns { url }) OR set dashboardUrl below
+ * KAAPAV Cockpit — MAX v2 (patched to accept token via postMessage and default to panel.kaapav.com)
  */
 
 export default function AdminWhatsAppPanel() {
-  
+
   // ===== CONFIG =====
   // === ENV constants ===
-const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://www.crm.kaapav.com/socket";
-const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://www.crm.kaapav.com/api";
-const n8nWebhookBase = "https://www.crm.kaapav.com/webhook";
-const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
-const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
+  // Default to panel.kaapav.com so deployed panel + nginx proxy on that host works
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://panel.kaapav.com/socket";
+  const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://panel.kaapav.com/api";
+  const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE ?? "https://panel.kaapav.com/webhook";
+  const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
+  const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
   // ===== TENANT & ROLE =====
   const [tenant, setTenant] = useState(localStorage.getItem("tenant") || "kaapav-default");
@@ -135,6 +123,29 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
   const messagesEndRef = useRef(null);
   const typingTimeout = useRef(null);
 
+  // internal socket url (fallback to socketUrl)
+  const internalSocketUrl = import.meta.env?.VITE_INTERNAL_SOCKET_URL ?? socketUrl;
+
+  // ===== PostMessage listener for token (Odoo -> iframe) =====
+  useEffect(() => {
+    const onMessage = (ev) => {
+      try {
+        const data = ev?.data || {};
+        if (data && data.type === "KAAPAV_SET_TOKEN") {
+          if (data.token && typeof data.token === "string") {
+            localStorage.setItem("ADMIN_TOKEN", data.token);
+            // if reload requested, refresh to pick token and connect sockets
+            if (data.reload) {
+              window.location.reload();
+            }
+          }
+        }
+      } catch (e) { /* ignore */ }
+    };
+    window.addEventListener("message", onMessage, false);
+    return () => window.removeEventListener("message", onMessage, false);
+  }, []);
+
   // ===== EFFECTS =====
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -161,8 +172,9 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
   // Main socket (customer chat)
   useEffect(() => {
-    if (!token) return;
-    const sock = io(socketUrl, { auth: { token, tenant }, transports: ["websocket"] });
+    const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
+    if (!currentToken) return;
+    const sock = io(socketUrl, { auth: { token: currentToken, tenant }, transports: ["websocket"] });
     socketRef.current = sock;
 
     sock.on("connect", () => { setConnected(true); flushOutbox(); });
@@ -177,24 +189,23 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
       if (autoAssist) { safeSuggest(nm); safeLeadScore(nm); }
     });
 
-    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }])
-      );
+    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }]));
 
     sock.on("session_messages", (list = []) => {
-  setMessages(list.map((m) => ({
-    text: m.text || m.message?.text || "",
-    from: m.from || (m.direction === "out" ? "admin" : undefined),
-    direction: m.direction || (m.from === "admin" ? "out" : "in"),
-    ts: m.ts || m.createdAt || Date.now(),
-  })));
-});
-    
+      setMessages(list.map((m) => ({
+        text: m.text || m.message?.text || "",
+        from: m.from || (m.direction === "out" ? "admin" : undefined),
+        direction: m.direction || (m.from === "admin" ? "out" : "in"),
+        ts: m.ts || m.createdAt || Date.now(),
+        id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
+      })));
+    });
+
     sock.on("typing", () => {
       setIsCustomerTyping(true);
       clearTimeout(typingTimeout.current);
       typingTimeout.current = setTimeout(() => setIsCustomerTyping(false), 2500);
     });
-// session messages bulk history
 
     // Load KPI embed URL (optional)
     (async () => {
@@ -208,17 +219,18 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
     })();
 
     return () => sock.disconnect();
-  }, [token, autoAssist, tenant]);
+  }, [autoAssist, tenant]); // token is read from localStorage inside effect
 
   // Internal agent chat socket
   useEffect(() => {
+    const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
     const isAllowed = role === "admin" || role === "agent";
-    if (!token || !isAllowed) return;
-    const sock = io(internalSocketUrl, { auth: { token, tenant }, transports: ["websocket"] });
+    if (!currentToken || !isAllowed) return;
+    const sock = io(internalSocketUrl, { auth: { token: currentToken, tenant }, transports: ["websocket"] });
     internalSockRef.current = sock;
     sock.on("internal_message", (m) => setInternalMsgs((p) => [...p, { ...m, ts: m.ts || Date.now() }]));
     return () => sock.disconnect();
-  }, [token, role, tenant]);
+  }, [role, tenant]);
 
   // Load convo + profile + 360 + upsell on select
   useEffect(() => {
@@ -321,18 +333,18 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
     } catch {}
   };
 
- const sendMessage = () => {
-  const text = (composerText || "").trim();
-  if (!text || !selectedSession) return;
-  const msg = { to: selectedSession, text };
-  socketRef.current?.emit("admin_send_message", msg);
-  setMessages(prev => [
-    ...prev,
-    { ...msg, from: "admin", direction: "out", ts: Date.now() },
-  ]);
-  setComposerText("");
-};
-
+  // FIXED: use composer and selected state (was composerText/selectedSession)
+  const sendMessage = () => {
+    const text = (composer || "").trim();
+    if (!text || !selected) return;
+    const msg = { to: selected, text };
+    socketRef.current?.emit("admin_send_message", msg);
+    setMessages(prev => [
+      ...prev,
+      { ...msg, from: "admin", direction: "out", ts: Date.now(), id: `${Date.now()}_${Math.random().toString(36).slice(2,8)}` },
+    ]);
+    setComposer("");
+  };
 
   const uploadMedia = async (file) => {
     if (!file || !selected) return;
@@ -540,9 +552,8 @@ const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
               <div key={s.userId}
                    className={`px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${selected===s.userId? 'bg-gray-50 dark:bg-gray-800' : ''}`}
                   onClick={() => {
-  setSelectedSession(s.userId);
+  setSelected(s.userId);
   socketRef.current?.emit("fetch_session_messages", s.userId);
-  setShowSessionsPanel(false);
 }}
                 >
                 <div className="flex items-center justify-between">
