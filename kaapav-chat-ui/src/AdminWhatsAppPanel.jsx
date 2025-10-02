@@ -25,18 +25,11 @@ export default function AdminWhatsAppPanel() {
 
   // ===== CONFIG =====
   // === ENV constants (safe defaults: use same-origin crm.kaapav.com) ===
-const socketUrl = import.meta.env?.VITE_SOCKET_URL 
-  ?? (typeof window !== 'undefined' ? `${window.location.origin}/socket.io` : '/socket.io');
-
-const apiBase   = import.meta.env?.VITE_API_URL
-  ?? (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
-
-const internalSocketUrl = import.meta.env?.VITE_INTERNAL_SOCKET_URL
-  ?? (typeof window !== 'undefined' ? `${window.location.origin}/socket.io/internal` : '/socket.io/internal');
-
-const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE
-  ?? (typeof window !== 'undefined' ? `${window.location.origin}/webhook` : '/webhook');
-
+// ===== Backend URLs =====
+const socketUrl        = import.meta.env?.VITE_SOCKET_URL        ?? "wss://crm.kaapav.com/socket.io";
+const apiBase          = import.meta.env?.VITE_API_URL           ?? "https://crm.kaapav.com/api";
+const internalSocketUrl= import.meta.env?.VITE_INTERNAL_SOCKET_URL ?? "wss://crm.kaapav.com/socket.io/internal";
+const n8nWebhookBase   = import.meta.env?.VITE_N8N_WEBHOOK_BASE  ?? "https://crm.kaapav.com/webhook";
 const token = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
 const defaultDashboardUrl = "";
   
