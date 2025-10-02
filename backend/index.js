@@ -43,7 +43,7 @@ try {
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'kaapavverify';
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || 'kaapavverify';
 
 // ====== ENV ======
 const PORT = process.env.PORT || 5555;
