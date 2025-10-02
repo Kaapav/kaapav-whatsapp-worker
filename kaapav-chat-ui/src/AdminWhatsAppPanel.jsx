@@ -125,6 +125,27 @@ const defaultDashboardUrl = "";
   // KPI Dashboard
   const [dashboardUrl, setDashboardUrl] = useState(defaultDashboardUrl);
 
+  // --- Backend status polling for connection badge ---
+  const [serverStatus, setServerStatus] = React.useState({ connected: false, phone: null });
+
+  React.useEffect(() => {
+   let mounted = true;
+    const poll = async () => {
+    try {
+      const res = await fetch("/api/status");
+      if (!res.ok) throw new Error("no status");
+      const j = await res.json();
+      if (mounted) setServerStatus({ connected: true, phone: j.phoneNumber || null });
+    } catch (e) {
+      if (mounted) setServerStatus({ connected: false, phone: null });
+    }
+  };
+  poll();
+  const id = setInterval(poll, 10000); // poll every 10s
+  return () => { mounted = false; clearInterval(id); };
+}, []);
+
+  
   // Offline Outbox
   const outboxKey = "kaapav_outbox";
 
@@ -502,6 +523,12 @@ const defaultDashboardUrl = "";
           <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500" : ""}>
             {connected ? "Connected" : "Offline"}
           </Badge>
+          {serverStatus.connected && (
+           <Badge variant="outline" className="ml-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+            {`Number: ${serverStatus.phone || '…'}`}
+          </Badge>
+        )}
+
           {sentiment && (<Badge variant="outline" className="ml-2">Mood: {sentiment}</Badge>)}
           {leadScore?.label && (
             <Badge variant="outline" className="ml-2 flex items-center gap-1">
