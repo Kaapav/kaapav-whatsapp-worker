@@ -383,22 +383,3 @@ module.exports = {
   sendSimpleInfo,
   LINKS,
 };
-
-// ---------- LEGACY / SAFETY FALLBACK ----------
-// Ensure legacy export `sendMainMenuAlt` exists for callers that expect it.
-// This avoids duplicate-declaration issues and delegates to sendMainMenu if available.
-if (!module.exports) module.exports = {};
-if (typeof module.exports.sendMainMenuAlt !== 'function') {
-  module.exports.sendMainMenuAlt = async function(to, lang = 'en') {
-    console.warn('[FALLBACK] sendMainMenuAlt missing — delegating to sendMainMenu');
-    try {
-      if (typeof module.exports.sendMainMenu === 'function') {
-        return await module.exports.sendMainMenu(to, lang);
-      }
-    } catch (e) {
-      console.warn('[FALLBACK] delegation failed', e && e.message ? e.message : e);
-    }
-    // best-effort no-op fallback
-    return null;
-  };
-}
