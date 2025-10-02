@@ -43,6 +43,7 @@ try {
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'kaapavverify';
 
 // ====== ENV ======
 const PORT = process.env.PORT || 5555;
@@ -645,6 +646,12 @@ async function processInteractive(from, rawReply, session, messageId) {
 
   try { io.to('admin').emit('button_pressed', { from, id: normalized, ts: Date.now() }); } catch {}
 }
+
+// Alias: /api/webhook → /webhooks/whatsapp/cloudapi
+app.use('/api/webhook', (req, res, next) => {
+  req.url = '/webhooks/whatsapp/cloudapi' + (req.url || '');
+  next();
+});
 
 // ====== Webhook endpoints ======
 app.get('/webhooks/whatsapp/cloudapi', (req, res) => {
