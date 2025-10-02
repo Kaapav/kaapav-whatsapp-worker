@@ -787,6 +787,16 @@ app.post('/test/sendMain', async (req, res) => {
   }
 });
 
+// --- status endpoint for UI health/connection badge ---
+app.get('/api/status', (req, res) => {
+  res.json({
+    ok: true,
+    phoneNumber: process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || null,
+    uptime: process.uptime()
+  });
+});
+
 // ====== Start server ======
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
