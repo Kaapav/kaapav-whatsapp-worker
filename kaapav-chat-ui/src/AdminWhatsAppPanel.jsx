@@ -997,12 +997,6 @@ export default function AdminWhatsAppPanel() {
     No KPI dashboard URL configured
   </div>
 )}
-
-
-
-                  ) : (
-                    <div className="p-3 text-xs opacity-70">No KPI dashboard URL configured</div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>
