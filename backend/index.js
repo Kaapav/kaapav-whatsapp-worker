@@ -792,7 +792,7 @@ app.get('/api/status', (req, res) => {
   res.json({
     ok: true,
     phoneNumber: process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016',
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || null,
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '745230991999571',
     uptime: process.uptime()
   });
 });
