@@ -24,13 +24,22 @@ import {
 export default function AdminWhatsAppPanel() {
 
   // ===== CONFIG =====
-  // === ENV constants ===
-  // Default to panel.kaapav.com so deployed panel + nginx proxy on that host works
-  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "wss://panel.kaapav.com/socket.io";
-  const apiBase   = import.meta.env?.VITE_API_URL   ?? "https://panel.kaapav.com/api";
-  const internalSocketUrl =  import.meta.env?.VITE_INTERNAL_SOCKET_URL || "wss://www.crm.kaapav.com/socket.io/internal";
-  const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE ?? "https://panel.kaapav.com/webhook";
-  const token     = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
+  // === ENV constants (safe defaults: use same-origin crm.kaapav.com) ===
+const socketUrl = import.meta.env?.VITE_SOCKET_URL 
+  ?? (typeof window !== 'undefined' ? `${window.location.origin}/socket.io` : '/socket.io');
+
+const apiBase   = import.meta.env?.VITE_API_URL
+  ?? (typeof window !== 'undefined' ? `${window.location.origin}/api` : '/api');
+
+const internalSocketUrl = import.meta.env?.VITE_INTERNAL_SOCKET_URL
+  ?? (typeof window !== 'undefined' ? `${window.location.origin}/socket.io/internal` : '/socket.io/internal');
+
+const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE
+  ?? (typeof window !== 'undefined' ? `${window.location.origin}/webhook` : '/webhook');
+
+const token = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
+const defaultDashboardUrl = "";
+
   const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
 
   // ===== TENANT & ROLE =====
