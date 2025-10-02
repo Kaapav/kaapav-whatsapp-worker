@@ -39,9 +39,7 @@ const n8nWebhookBase = import.meta.env?.VITE_N8N_WEBHOOK_BASE
 
 const token = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
 const defaultDashboardUrl = "";
-
-  const defaultDashboardUrl = "";           // Optional: static Metabase embed URL
-
+  
   // ===== TENANT & ROLE =====
   const [tenant, setTenant] = useState(localStorage.getItem("tenant") || "kaapav-default");
   const [role, setRole] = useState(localStorage.getItem("role") || "admin"); // admin | agent | viewer
