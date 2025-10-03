@@ -48,7 +48,6 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOK
 // ====== ENV ======
 const PORT = process.env.PORT || 5555;
 const {
-  VERIFY_TOKEN,
   MONGO_URI,
   REDIS_URI,
   WA_PHONE_ID, // WhatsApp phone_number_id
