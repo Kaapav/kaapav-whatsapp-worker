@@ -144,7 +144,58 @@ const defaultDashboardUrl = "";
   const internalSockRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeout = useRef(null);
-  
+
+  // --- place this in AdminWhatsAppPanel() just before sockets are created / or before any useEffect that opens sockets ---
+
+// quick helper - read token
+const storedToken = (typeof window !== 'undefined') ? (localStorage.getItem("ADMIN_TOKEN") || "").trim() : "";
+
+if (!storedToken) {
+  // Render a minimal login/token entry UI to protect the app when no token is present
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: 420, boxShadow: '0 6px 20px rgba(0,0,0,0.08)', borderRadius: 8, padding: 20, background: '#fff' }}>
+        <h2 style={{ margin: 0, marginBottom: 8 }}>Admin Login — Provide token</h2>
+        <p style={{ marginTop: 0, marginBottom: 12, color: '#666', fontSize: 13 }}>This panel requires an admin token. Paste it here (or use your SSO to inject ADMIN_TOKEN into localStorage).</p>
+
+        <label style={{ display: 'block', marginBottom: 6, fontSize: 13 }}>Admin token</label>
+        <input id="admin_token_input" type="text" style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #ddd', marginBottom: 12 }} placeholder="paste ADMIN_TOKEN here" />
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => {
+              const v = (document.getElementById('admin_token_input')?.value || '').trim();
+              if (!v) { alert('Please provide a token'); return; }
+              localStorage.setItem('ADMIN_TOKEN', v);
+              // reload so effect hooks pick token and connect sockets
+              window.location.reload();
+            }}
+            style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: '#0ea5a4', color: '#fff' }}
+          >
+            Save token & reload
+          </button>
+
+          <button
+            onClick={() => {
+              // optional: quick demo token (only if you want)
+              // localStorage.setItem('ADMIN_TOKEN', 'demo-token');
+              // window.location.reload();
+              alert('If you have an external login, open it in another tab to set ADMIN_TOKEN or paste the token here.');
+            }}
+            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd', background: '#fff' }}
+          >
+            Need help
+          </button>
+        </div>
+
+        <div style={{ marginTop: 12, fontSize: 12, color: '#888' }}>
+          Tip: your SSO / login page can postMessage the token: window.postMessage({type:'KAAPAV_SET_TOKEN', token:'...'}, window.location.origin)
+        </div>
+      </div>
+    </div>
+  );
+}
+
   // ===== PostMessage listener for token (Odoo -> iframe) =====
   useEffect(() => {
     const onMessage = (ev) => {
@@ -189,42 +240,171 @@ const defaultDashboardUrl = "";
     return () => { stop = true; clearInterval(t); };
   }, [tenant]);
 
-  // Main socket (customer chat)
-  useEffect(() => {
-    const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
-    if (!currentToken) return;
-    const sock = io(socketUrl, { auth: { token: currentToken, tenant }, transports: ["websocket"] });
-    socketRef.current = sock;
-
-    sock.on("connect", () => { setConnected(true); flushOutbox(); });
-    sock.on("disconnect", () => setConnected(false));
-    sock.on("sessions_snapshot", (list) => setSessions(list || []));
-
-    sock.on("incoming_message", (m) => {
-      const nm = normalizeMsg(m, "in");
-      setMessages(prev => [...prev, { ...m, direction: "in" }]);
-      setIsCustomerTyping(false);
-      safeRunSentiment(nm);
-      if (autoAssist) { safeSuggest(nm); safeLeadScore(nm); }
+ // ---------- START REPLACEMENT: Main socket (customer chat) ----------
+/**
+ * Main socket (customer chat)
+ * - Connects using token from localStorage
+ * - Reconnects when token or tenant changes
+ * - Robust handlers: sessions_snapshot, incoming_message, session_messages, typing
+ * - Keeps sessions list in sync and maintains unread counts
+ */
+useEffect(() => {
+  // helpers
+  const upsertSession = (sess) => {
+    // sess: { userId, name, lastMessage, unread }
+    setSessions(prev => {
+      const found = (prev || []).find(s => s.userId === sess.userId);
+      if (found) {
+        return prev.map(s => s.userId === sess.userId ? { ...s, ...sess } : s);
+      } else {
+        // new session goes to top
+        return [{ ...sess }, ...prev];
+      }
     });
+  };
 
-    sock.on("outgoing_message", (m) => setMessages(prev => [...prev, { ...m, direction: "out" }]));
+  const addMessageToState = (m) => {
+    setMessages(prev => {
+      const arr = [...(prev || []), m];
+      // auto-scroll when messages updated for selected session
+      setTimeout(() => {
+        try { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch(e){}
+      }, 30);
+      return arr;
+    });
+  };
 
-    sock.on("session_messages", (list = []) => {
-      setMessages(list.map((m) => ({
-        text: m.text || m.message?.text || "",
-        from: m.from || (m.direction === "out" ? "admin" : undefined),
-        direction: m.direction || (m.from === "admin" ? "out" : "in"),
+  // get token each time (supports postMessage set)
+  const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
+  if (!currentToken) {
+    console.warn('[AdminPanel] no ADMIN_TOKEN available — socket not started');
+    return; // don't attempt socket connect without token
+  }
+
+  // build socket options — explicit path ensures same as nginx (/socket.io)
+  const sock = io(socketUrl, {
+    path: '/socket.io',
+    auth: { token: currentToken, tenant },
+    transports: ['websocket'],
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    autoConnect: true,
+  });
+
+  socketRef.current = sock;
+  console.log('[AdminPanel] socket connecting to', socketUrl);
+
+  sock.on('connect', () => {
+    console.log('[AdminPanel] socket connected', sock.id);
+    setConnected(true);
+    // request an initial snapshot if backend doesn't proactively emit it
+    try { sock.emit('request_sessions_snapshot'); } catch(e){}
+    flushOutbox();
+  });
+
+  sock.on('disconnect', (reason) => {
+    console.warn('[AdminPanel] socket disconnected', reason);
+    setConnected(false);
+  });
+
+  // full sessions snapshot (replace list)
+  sock.on('sessions_snapshot', (list = []) => {
+    console.log('[AdminPanel] sessions_snapshot', list?.length);
+    // normalize entries to { userId, name, lastMessage, unread }
+    const normalized = (list || []).map(s => ({
+      userId: s.userId || s.id || s.user || s.name || (s.phone || '').toString(),
+      name: s.name || s.displayName || s.userId || '',
+      lastMessage: s.lastMessage || s.preview || '',
+      unread: typeof s.unread === 'number' ? s.unread : (s.unreadCount || 0)
+    }));
+    setSessions(normalized);
+  });
+
+  // incoming message from backend (real-time)
+  sock.on('incoming_message', (m) => {
+    try {
+      console.log('[AdminPanel] incoming_message', m);
+      // arrive as raw message — normalize
+      const userId = m.userId || m.from || m.fromNumber || m.from_user || m.to;
+      const normalized = {
+        id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+        from: m.from || userId,
+        to: m.to,
+        text: m.text || (m.message && m.message.text) || '',
+        media: m.media || null,
         ts: m.ts || m.createdAt || Date.now(),
-        id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`
-      })));
-    });
+        status: m.status || 'delivered',
+        direction: 'in'
+      };
 
-    sock.on("typing", () => {
-      setIsCustomerTyping(true);
-      clearTimeout(typingTimeout.current);
-      typingTimeout.current = setTimeout(() => setIsCustomerTyping(false), 2500);
-    });
+      // If the message belongs to the currently selected session, append to messages
+      if (selected && (String(selected) === String(userId))) {
+        addMessageToState(normalized);
+      } else {
+        // bump session and increment unread
+        upsertSession({
+          userId,
+          name: m.name || m.displayName || userId,
+          lastMessage: normalized.text || '[media]',
+          unread: 1 // increment below
+        });
+        // increment unread if session exists
+        setSessions(prev => (prev || []).map(s => {
+          if (String(s.userId) === String(userId)) {
+            return { ...s, unread: (Number(s.unread) || 0) + 1, lastMessage: normalized.text || '[media]' };
+          }
+          return s;
+        }));
+      }
+
+      // optionally run assistors
+      safeRunSentiment(normalized);
+      if (autoAssist) safeSuggest(normalized);
+    } catch (e) {
+      console.error('incoming_message handler error', e);
+    }
+  });
+
+  // messages history for a session
+  sock.on('session_messages', (list = []) => {
+    console.log('[AdminPanel] session_messages length=', (list||[]).length);
+    const mapped = (list || []).map(x => ({
+      id: x.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+      from: x.from,
+      text: x.text || x.message?.text || '',
+      media: x.media || null,
+      ts: x.ts || x.createdAt || Date.now(),
+      status: x.status || (x.direction === 'out' ? 'sent' : 'delivered'),
+      direction: x.direction || (x.from === 'admin' ? 'out' : 'in')
+    }));
+    setMessages(mapped);
+    // reset unread for this selected session
+    if (selected) {
+      setSessions(prev => (prev || []).map(s => s.userId === selected ? { ...s, unread: 0 } : s));
+    }
+    // scroll to bottom
+    setTimeout(()=> { try { messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }); } catch(e){} }, 40);
+  });
+
+  // typing indicator
+  sock.on('typing', (data) => {
+    setIsCustomerTyping(true);
+    clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(()=> setIsCustomerTyping(false), 2500);
+  });
+
+  // fallback: errors
+  sock.on('connect_error', (err) => {
+    console.error('[AdminPanel] socket connect_error', err && err.message ? err.message : err);
+  });
+
+  // cleanup on unmount or deps change
+  return () => {
+    try { sock.disconnect(); } catch(e) {}
+    socketRef.current = null;
+  };
+}, [tenant, /* do not include token here; token read from localStorage at connect time */]);
+
 
     // Load KPI embed URL (optional)
     (async () => {
