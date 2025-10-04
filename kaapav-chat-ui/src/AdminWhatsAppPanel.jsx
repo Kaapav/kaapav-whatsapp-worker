@@ -504,163 +504,167 @@ const defaultDashboardUrl = "";
   };
 
   // ===== UI =====
-  return (
-    <div className="h-screen grid grid-rows-[auto,auto,1fr] bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="text-[#C4952F]" />
-          <div className="font-semibold">KAAPAV Cockpit</div>
-          <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500" : ""}>
-            {connected ? "Connected" : "Offline"}
-          </Badge>
-          {serverStatus.connected && (
-           <Badge variant="outline" className="ml-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+return (
+  // top-level: ensure viewport height
+  <div className="min-h-screen h-screen grid grid-rows-[auto,auto,1fr] bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    {/* Header */}
+    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
+      <div className="flex items-center gap-2">
+        <MessageCircle className="text-[#C4952F]" />
+        <div className="font-semibold">KAAPAV Cockpit</div>
+        <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500" : ""}>
+          {connected ? "Connected" : "Offline"}
+        </Badge>
+        {serverStatus.connected && (
+          <Badge variant="outline" className="ml-2 bg-emerald-50 text-emerald-700 border-emerald-200">
             {`Number: ${serverStatus.phone || '…'}`}
           </Badge>
         )}
 
-          {sentiment && (<Badge variant="outline" className="ml-2">Mood: {sentiment}</Badge>)}
-          {leadScore?.label && (
-            <Badge variant="outline" className="ml-2 flex items-center gap-1">
-              <Star className="w-3 h-3" /> {leadScore.label} ({leadScore.score})
-            </Badge>
-          )}
+        {sentiment && (<Badge variant="outline" className="ml-2">Mood: {sentiment}</Badge>)}
+        {leadScore?.label && (
+          <Badge variant="outline" className="ml-2 flex items-center gap-1">
+            <Star className="w-3 h-3" /> {leadScore.label} ({leadScore.score})
+          </Badge>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        {/* Tenant & Role */}
+        <div className="flex items-center gap-2">
+          <Label className="text-xs">Tenant</Label>
+          <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={tenant} onChange={(e)=>setTenant(e.target.value)}>
+            <option value="kaapav-default">kaapav-default</option>
+            <option value="kaapav-fashion">kaapav-fashion</option>
+            <option value="kaapav-foods">kaapav-foods</option>
+          </select>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Tenant & Role */}
-          <div className="flex items-center gap-2">
-            <Label className="text-xs">Tenant</Label>
-            <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={tenant} onChange={(e)=>setTenant(e.target.value)}>
-              <option value="kaapav-default">kaapav-default</option>
-              <option value="kaapav-fashion">kaapav-fashion</option>
-              <option value="kaapav-foods">kaapav-foods</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs">Role</Label>
-            <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={role} onChange={(e)=>setRole(e.target.value)}>
-              <option value="admin">admin</option>
-              <option value="agent">agent</option>
-              <option value="viewer">viewer</option>
-            </select>
-          </div>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2 top-2.5 opacity-50" />
-            <Input className="pl-8 w-64" placeholder="Search sessions…" value={sessionFilter} onChange={(e)=>setSessionFilter(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="autoAssist" className="text-xs opacity-70">Auto-Assist</Label>
-            <Switch id="autoAssist" checked={autoAssist} onCheckedChange={setAutoAssist} />
-          </div>
-          <Button variant="outline" size="sm" onClick={()=>setDark(!dark)}>
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs">Role</Label>
+          <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={role} onChange={(e)=>setRole(e.target.value)}>
+            <option value="admin">admin</option>
+            <option value="agent">agent</option>
+            <option value="viewer">viewer</option>
+          </select>
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-2 top-2.5 opacity-50" />
+          <Input className="pl-8 w-64" placeholder="Search sessions…" value={sessionFilter} onChange={(e)=>setSessionFilter(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="autoAssist" className="text-xs opacity-70">Auto-Assist</Label>
+          <Switch id="autoAssist" checked={autoAssist} onCheckedChange={setAutoAssist} />
+        </div>
+        <Button variant="outline" size="sm" onClick={()=>setDark(!dark)}>
+          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </Button>
+      </div>
+    </div>
+
+    {/* Alerts banner */}
+    {alerts && alerts.length>0 && (
+      <div className="px-3 py-2 bg-red-600 text-white text-sm flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4"/>
+        <div className="font-medium">Anomalies detected</div>
+        <div className="opacity-90 truncate">{alerts.slice(0,3).map(a=>a.title||a.message).join(" • ")}{alerts.length>3?` (+${alerts.length-3})`:''}</div>
+      </div>
+    )}
+
+    {/* Main: add min-h-0 so children with overflow-auto can shrink/scroll */}
+    <div className="grid grid-cols-12 gap-3 p-3 overflow-hidden min-h-0 h-full">
+      {/* Left — Sessions: make full-height + allow internal scroll */}
+      <div className="col-span-3 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden h-full min-h-0">
+        <div className="h-full overflow-auto divide-y divide-gray-100 dark:divide-gray-800 min-h-0">
+          {filteredSessions.map((s) => (
+            <div key={s.userId}
+                 className={`px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${selected===s.userId? 'bg-gray-50 dark:bg-gray-800' : ''}`}
+                 onClick={() => {
+                   setSelected(s.userId);
+                   socketRef.current?.emit("fetch_session_messages", s.userId);
+                 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
+                {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
+              </div>
+              <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
+              <div className="mt-1 flex gap-1 flex-wrap">
+                {(s.tags||[]).slice(0,4).map((t,i)=>(<Badge key={i} variant="outline" className="text-[10px]">{t}</Badge>))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Alerts banner */}
-      {alerts && alerts.length>0 && (
-        <div className="px-3 py-2 bg-red-600 text-white text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4"/>
-          <div className="font-medium">Anomalies detected</div>
-          <div className="opacity-90 truncate">{alerts.slice(0,3).map(a=>a.title||a.message).join(" • ")}{alerts.length>3?` (+${alerts.length-3})`:''}</div>
+      {/* Middle — Chat: ensure flex column and allow the message list to scroll */}
+      <div className="col-span-6 flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden h-full min-h-0">
+        <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="w-4 h-4 text-emerald-500" />
+            <div className="font-semibold">{selected || 'No session selected'}</div>
+          </div>
+          <div className="flex items-center gap-2 text-xs opacity-70">
+            <Clock className="w-3 h-3" /> {new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+            <Button size="sm" variant="outline" onClick={()=>setShowCSAT(true)} className="ml-2"><BadgeInfo className="w-3 h-3 mr-1"/>End & CSAT</Button>
+          </div>
         </div>
-      )}
 
-      {/* Main */}
-      <div className="grid grid-cols-12 gap-3 p-3 overflow-hidden">
-        {/* Left — Sessions */}
-        <div className="col-span-3 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="h-full overflow-auto divide-y divide-gray-100 dark:divide-gray-800">
-            {filteredSessions.map((s) => (
-              <div key={s.userId}
-                   className={`px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${selected===s.userId? 'bg-gray-50 dark:bg-gray-800' : ''}`}
-                  onClick={() => {
-  setSelected(s.userId);
-  socketRef.current?.emit("fetch_session_messages", s.userId);
-}}
-                >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
-                  {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
+        {/* Messages area: flex-1 + overflow-auto + min-h-0 (critical) */}
+        <div className="flex-1 overflow-auto p-4 space-y-3 min-h-0">
+          {isCustomerTyping && <div className="text-xs opacity-70 pl-2">Customer is typing…</div>}
+          {messages.map((m)=>{
+            const isOut = m.direction === 'out' || m.from === 'admin';
+            const bubble = (
+              <div className={`max-w-[78%] p-3 rounded-2xl shadow ${isOut? 'ml-auto bg-gradient-to-r from-[#D4AF37] to-[#C4952F] text-white' : 'mr-auto bg-gray-200 dark:bg-gray-800'}`}>
+                <div className="text-[10px] opacity-60 mb-1 flex items-center gap-1">
+                  {isOut? 'You' : (m.from||'User')} • {new Date(m.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                  {isOut && <StatusTick status={m.status} />}
                 </div>
-                <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
-                <div className="mt-1 flex gap-1 flex-wrap">
-                  {(s.tags||[]).slice(0,4).map((t,i)=>(<Badge key={i} variant="outline" className="text-[10px]">{t}</Badge>))}
-                </div>
+                {m.media ? (
+                  <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
+                ) : (
+                  <div className="text-sm whitespace-pre-wrap">{m.text}</div>
+                )}
               </div>
+            );
+            return <div key={m.id}>{bubble}</div>
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Composer: keep it at bottom */}
+        <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2">
+          <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
+            <Upload className="w-4 h-4" /> Attach
+            <input type="file" className="hidden" onChange={(e)=>uploadMedia(e.target.files?.[0])} />
+          </label>
+          <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
+            <Mic className="w-4 h-4" /> Voice
+            <input type="file" accept="audio/*" className="hidden" onChange={(e)=>sendVoiceNote(e.target.files?.[0])} />
+          </label>
+          <Textarea rows={2} className="flex-1" placeholder={selected? 'Type a reply…' : 'Select a session to chat'} disabled={!selected}
+                    value={composer}
+                    onChange={(e)=>setComposer(e.target.value)}
+                    onKeyDown={(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
+          <Button onClick={sendMessage} disabled={!selected} className="bg-[#C4952F] text-white"><Send className="w-4 h-4" /></Button>
+        </div>
+
+        {/* AI Suggestions */}
+        {suggestions.length>0 && (
+          <div className="px-3 pb-3 flex flex-wrap gap-2">
+            {suggestions.map((sug,idx)=>(
+              <Button key={idx} size="sm" variant="outline" onClick={()=>setComposer(sug)} className="text-xs">
+                <Sparkles className="w-3 h-3 mr-1"/> {sug}
+              </Button>
             ))}
+            {aiBusy && <span className="text-xs opacity-60">Thinking…</span>}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Middle — Chat */}
-        <div className="col-span-6 flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BadgeCheck className="w-4 h-4 text-emerald-500" />
-              <div className="font-semibold">{selected || 'No session selected'}</div>
-            </div>
-            <div className="flex items-center gap-2 text-xs opacity-70">
-              <Clock className="w-3 h-3" /> {new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
-              <Button size="sm" variant="outline" onClick={()=>setShowCSAT(true)} className="ml-2"><BadgeInfo className="w-3 h-3 mr-1"/>End & CSAT</Button>
-            </div>
-          </div>
+      {/* Right — CRM & Actions: allow scroll and full height */}
+      <div className="col-span-3 flex flex-col gap-3 overflow-auto h-full min-h-0">
 
-          <div className="flex-1 overflow-auto p-4 space-y-3">
-            {isCustomerTyping && <div className="text-xs opacity-70 pl-2">Customer is typing…</div>}
-            {messages.map((m)=>{
-              const isOut = m.direction === 'out' || m.from === 'admin';
-              const bubble = (
-                <div className={`max-w-[78%] p-3 rounded-2xl shadow ${isOut? 'ml-auto bg-gradient-to-r from-[#D4AF37] to-[#C4952F] text-white' : 'mr-auto bg-gray-200 dark:bg-gray-800'}`}>
-                  <div className="text-[10px] opacity-60 mb-1 flex items-center gap-1">
-                    {isOut? 'You' : (m.from||'User')} • {new Date(m.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                    {isOut && <StatusTick status={m.status} />}
-                  </div>
-                  {m.media ? (
-                    <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
-                  ) : (
-                    <div className="text-sm whitespace-pre-wrap">{m.text}</div>
-                  )}
-                </div>
-              );
-              return <div key={m.id}>{bubble}</div>
-            })}
-            <div ref={messagesEndRef} />
-          </div>
 
-          {/* Composer */}
-          <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2">
-            <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
-              <Upload className="w-4 h-4" /> Attach
-              <input type="file" className="hidden" onChange={(e)=>uploadMedia(e.target.files?.[0])} />
-            </label>
-            <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
-              <Mic className="w-4 h-4" /> Voice
-              <input type="file" accept="audio/*" className="hidden" onChange={(e)=>sendVoiceNote(e.target.files?.[0])} />
-            </label>
-            <Textarea rows={2} className="flex-1" placeholder={selected? 'Type a reply…' : 'Select a session to chat'} disabled={!selected}
-                      value={composer}
-                      onChange={(e)=>setComposer(e.target.value)}
-                      onKeyDown={(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-            <Button onClick={sendMessage} disabled={!selected} className="bg-[#C4952F] text-white"><Send className="w-4 h-4" /></Button>
-          </div>
-
-          {/* AI Suggestions */}
-          {suggestions.length>0 && (
-            <div className="px-3 pb-3 flex flex-wrap gap-2">
-              {suggestions.map((sug,idx)=>(
-                <Button key={idx} size="sm" variant="outline" onClick={()=>setComposer(sug)} className="text-xs">
-                  <Sparkles className="w-3 h-3 mr-1"/> {sug}
-                </Button>
-              ))}
-              {aiBusy && <span className="text-xs opacity-60">Thinking…</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Right — CRM & Actions */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-auto">
           {/* CRM Card */}
           <Card className="overflow-hidden">
             <CardContent className="p-3 space-y-2">
