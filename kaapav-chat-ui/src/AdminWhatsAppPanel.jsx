@@ -50,8 +50,7 @@ export default function WhatsAppAdminGoldWhite() {
   const [authBusy, setAuthBusy] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [signup, setSignup] = useState({ username: "", password: "", confirm: "", role: "admin" });
-  const [showSignup, setShowSignup] = useState(false);
-  const [signup, setSignup] = useState({ username: "", password: "", confirm: "", role: "admin" });
+ 
 
   // ======= SETTINGS =======
   const [autoHideActions, setAutoHideActions] = useState(
@@ -443,20 +442,7 @@ const doSignup = async (e) => {
         required
       />
     </div>
-    <div>
-      <label className="text-xs opacity-70">Password</label>
-      <input
-        type="password"
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={login.password}
-        onChange={(e)=>setLogin({...login, password:e.target.value})}
-        required
-      />
-    </div>
-    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
-      {authBusy ? 'Signing in…' : 'Login'}
-    </button>
-  </form>
+    </form>
 ) : (
   <form onSubmit={doSignup} className="space-y-3">
     <div>
