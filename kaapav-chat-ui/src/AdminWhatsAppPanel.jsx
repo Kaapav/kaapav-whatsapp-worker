@@ -124,7 +124,13 @@ export default function WhatsAppAdminGoldWhite() {
   // ======= SOCKET =======
   useEffect(() => {
     if (!token) return;
-    const sock = io(socketUrl, { auth: { token }, transports: ["websocket"] });
+    const sock = io(socketUrl, {
+    auth: { token },
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000
+  });
     socketRef.current = sock;
 
     sock.on("connect", () => setConnected(true));
