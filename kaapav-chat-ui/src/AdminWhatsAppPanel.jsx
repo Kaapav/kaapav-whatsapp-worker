@@ -30,6 +30,7 @@ import {
  *  - Sessions list no longer auto-collapses; you control it with the chevron.
  *  - Login (username/password → JWT)
  */
+ 
 export default function WhatsAppAdminGoldWhite() {
   // ======= THEME (KAAPAV) =======
   const GOLD = "#C4952F";
@@ -47,6 +48,10 @@ export default function WhatsAppAdminGoldWhite() {
   const [loginView, setLoginView] = useState(() => !token);
   const [login, setLogin] = useState({ username: "", password: "" });
   const [authBusy, setAuthBusy] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [signup, setSignup] = useState({ username: "", password: "", confirm: "", role: "admin" });
+  const [showSignup, setShowSignup] = useState(false);
+  const [signup, setSignup] = useState({ username: "", password: "", confirm: "", role: "admin" });
 
   // ======= SETTINGS =======
   const [autoHideActions, setAutoHideActions] = useState(
@@ -187,12 +192,50 @@ export default function WhatsAppAdminGoldWhite() {
       setAuthBusy(false);
     }
   };
+
+  // ======= SIGNUP (Create user -> returns token or fall back to login) =======
+const doSignup = async (e) => {
+  e?.preventDefault?.();
+  if (!signup.username.trim() || !signup.password.trim()) return;
+  if (signup.password !== signup.confirm) return;
+  setAuthBusy(true);
+  try {
+    const res = await fetch(`${apiBase}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: signup.username.trim(),
+        password: signup.password,
+        role: signup.role || "admin",
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json().catch(() => ({}));
+    const t = (j?.token || j?.accessToken || "").trim();
+    if (t) {
+      localStorage.setItem("ADMIN_TOKEN", t);
+      setToken(t);
+      setLoginView(false);
+      showToast("Account created & logged in");
+    } else {
+      setLogin({ username: signup.username, password: signup.password });
+      setShowSignup(false);
+      showToast("Account created. Please login");
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("Signup failed");
+  } finally {
+    setAuthBusy(false);
+  }
+};
+
   const doLogout = () => {
     localStorage.removeItem("ADMIN_TOKEN");
     setToken("");
     setLoginView(true);
   };
-
+ 
   // ======= CHAT =======
   const sendMessage = () => {
     const text = (composer || "").trim();
@@ -371,16 +414,96 @@ export default function WhatsAppAdminGoldWhite() {
               Kaapav Admin Login
             </div>
           </div>
-          <form onSubmit={doLogin} className="space-y-3">
-            <div>
-              <label className="text-xs opacity-70">Username</label>
-              <input
-                className="mt-1 w-full px-3 py-2 rounded-md border"
-                value={login.username}
-                onChange={(e) => setLogin({ ...login, username: e.target.value })}
-                required
-              />
-            </div>
+          {/* Tabs */}
+<div className="flex text-sm mb-4 border rounded-lg overflow-hidden" style={{ borderColor: `${GOLD}33` }}>
+  <button
+    type="button"
+    className={`flex-1 py-2 ${!showSignup ? 'bg-[#FFF8EB] font-medium':''}`}
+    onClick={() => setShowSignup(false)}
+  >
+    Login
+  </button>
+  <button
+    type="button"
+    className={`flex-1 py-2 ${ showSignup ? 'bg-[#FFF8EB] font-medium':''}`}
+    onClick={() => setShowSignup(true)}
+  >
+    Create User
+  </button>
+</div>
+
+          {!showSignup ? (
+  <form onSubmit={doLogin} className="space-y-3">
+    <div>
+      <label className="text-xs opacity-70">Username</label>
+      <input
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={login.username}
+        onChange={(e)=>setLogin({...login, username:e.target.value})}
+        required
+      />
+    </div>
+    <div>
+      <label className="text-xs opacity-70">Password</label>
+      <input
+        type="password"
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={login.password}
+        onChange={(e)=>setLogin({...login, password:e.target.value})}
+        required
+      />
+    </div>
+    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
+      {authBusy ? 'Signing in…' : 'Login'}
+    </button>
+  </form>
+) : (
+  <form onSubmit={doSignup} className="space-y-3">
+    <div>
+      <label className="text-xs opacity-70">Username</label>
+      <input
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={signup.username}
+        onChange={(e)=>setSignup({...signup, username:e.target.value})}
+        required
+      />
+    </div>
+    <div>
+      <label className="text-xs opacity-70">Password</label>
+      <input
+        type="password"
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={signup.password}
+        onChange={(e)=>setSignup({...signup, password:e.target.value})}
+        required
+      />
+    </div>
+    <div>
+      <label className="text-xs opacity-70">Confirm Password</label>
+      <input
+        type="password"
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={signup.confirm}
+        onChange={(e)=>setSignup({...signup, confirm:e.target.value})}
+        required
+      />
+    </div>
+    <div className="flex items-center gap-3 text-xs">
+      <label className="flex items-center gap-2">
+        <input type="radio" name="role" checked={signup.role==='admin'} onChange={()=>setSignup({...signup, role:'admin'})}/>
+        Admin
+      </label>
+      <label className="flex items-center gap-2">
+        <input type="radio" name="role" checked={signup.role==='agent'} onChange={()=>setSignup({...signup, role:'agent'})}/>
+        Agent
+      </label>
+    </div>
+    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
+      {authBusy ? 'Creating…' : 'Create User'}
+    </button>
+  </form>
+)}
+
             <div>
               <label className="text-xs opacity-70">Password</label>
               <input
@@ -526,7 +649,7 @@ export default function WhatsAppAdminGoldWhite() {
         {/* Middle: Chat */}
         <div
           id="chatPane"
-          className={`$${menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"} flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
+          className={`${menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"} flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
           style={{ background: PAPER, border: `1px solid ${GOLD}33` }}
         >
           {/* Chat Header */}
