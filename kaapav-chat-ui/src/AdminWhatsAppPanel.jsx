@@ -1,476 +1,107 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
-  Sun, Moon, MessageCircle, Send, Search, Check, CheckCheck,
-  Upload, UserCircle2, Sparkles, Clock, Megaphone, Tags, NotebookPen,
-  ShoppingCart, CreditCard, Truck, BarChart3, BadgeCheck, Star, Package,
-  ListPlus, Users, Trophy, Plus, Minus, AlertTriangle, Mic, MicOff, Bot,
-  ClipboardList, Database, Filter, CalendarClock, BadgeInfo
+  Menu,
+  Search,
+  Send,
+  Upload,
+  LogOut,
+  CreditCard,
+  Package,
+  Truck,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  CheckCheck,
+  UserCircle2,
+  Lock,
+  Megaphone,
+  Settings,
 } from "lucide-react";
 
 /**
- * KAAPAV Cockpit — MAX v2 (patched to accept token via postMessage and default to panel.kaapav.com)
+ * Kaapav WhatsApp Admin — Gold/White + Auto‑Hide **Actions**
+ *
+ * Additions vs previous build:
+ *  - Gold/White theme (reduced charcoal)
+ *  - WhatsApp-like 3‑pane responsive layout
+ *  - **Auto‑hide Actions**: the actions drawer (Catalogue, Razorpay, Shiprocket, Broadcast) auto-closes after any action.
+ *  - Sessions list no longer auto-collapses; you control it with the chevron.
+ *  - Login (username/password → JWT)
  */
+export default function WhatsAppAdminGoldWhite() {
+  // ======= THEME (KAAPAV) =======
+  const GOLD = "#C4952F";
+  const WHITE = "#FFFFFF";
+  const PAPER = "#FAFAFA";
+  const TEXT = "#1F1C17"; // subtle charcoal for text only
 
-export default function AdminWhatsAppPanel() {
+  // ======= ENV =======
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "https://www.crm.kaapav.com/socket.io";
+  const apiBase = import.meta.env?.VITE_API_URL ?? "https://www.crm.kaapav.com/api";
+  const DEFAULT_WA = "919148330016"; // +91 91483 30016 in international format
 
-  // ===== CONFIG =====
-  // === ENV constants (safe defaults: use same-origin crm.kaapav.com) ===
-// ===== Backend URLs =====
-const socketUrl        = import.meta.env?.VITE_SOCKET_URL        ?? "/socket.io";
-const apiBase          = import.meta.env?.VITE_API_URL           ?? "/api";
-const internalSocketUrl= import.meta.env?.VITE_INTERNAL_SOCKET_URL ?? "/socket.io/internal";
-const n8nWebhookBase   = import.meta.env?.VITE_N8N_WEBHOOK_BASE  ?? "https://crm.kaapav.com/webhook";
-const token = (import.meta.env?.VITE_ADMIN_TOKEN || localStorage.getItem("ADMIN_TOKEN") || "").trim();
-const defaultDashboardUrl = "";
-  
-  // ===== TENANT & ROLE =====
-  const [tenant, setTenant] = useState(localStorage.getItem("tenant") || "kaapav-default");
-  const [role, setRole] = useState(localStorage.getItem("role") || "admin"); // admin | agent | viewer
+  // ======= AUTH =======
+  const [token, setToken] = useState(() => (localStorage.getItem("ADMIN_TOKEN") || "").trim());
+  const [loginView, setLoginView] = useState(() => !token);
+  const [login, setLogin] = useState({ username: "", password: "" });
+  const [authBusy, setAuthBusy] = useState(false);
 
-  // ===== THEME/CONN =====
-  const [dark, setDark] = useState(localStorage.getItem("darkMode") === "true");
-  const [connected, setConnected] = useState(false);
-  const [alerts, setAlerts] = useState([]); // /alerts/feed
+  // ======= SETTINGS =======
+  const [autoHideActions, setAutoHideActions] = useState(
+    () => (localStorage.getItem("autoHideActions") ?? "true") === "true"
+  );
+  useEffect(
+    () => localStorage.setItem("autoHideActions", String(autoHideActions)),
+    [autoHideActions]
+  );
 
-  // ===== SESSIONS & CHAT =====
+  // ======= DATA =======
   const [sessions, setSessions] = useState([]);
   const [sessionFilter, setSessionFilter] = useState("");
   const [selected, setSelected] = useState(null);
-  const [profile, setProfile] = useState(null);
   const [messages, setMessages] = useState([]);
   const [composer, setComposer] = useState("");
-  const [isCustomerTyping, setIsCustomerTyping] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
-  // AI + Assist
-  const [suggestions, setSuggestions] = useState([]);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [sentiment, setSentiment] = useState(null);
-  const [autoAssist, setAutoAssist] = useState(true);
-  const [leadScore, setLeadScore] = useState({ label: "", score: 0 });
-  const [upsell, setUpsell] = useState([]); // /ai/upsell suggestions for selected
-
-  // CRM quick fields
-  const [notes, setNotes] = useState("");
-  const [tags, setTags] = useState([]);
-  const [assignTo, setAssignTo] = useState("");
-  const [view360, setView360] = useState(null); // /crm/360
-
-  // Broadcast / Campaigns
-  const [broadcastText, setBroadcastText] = useState("");
-  const [broadcastTag, setBroadcastTag] = useState("ALL");
-  const [dripEnabled, setDripEnabled] = useState(false);
-
-  // Commerce helpers
-  const [amount, setAmount] = useState("");
-  const [payNote, setPayNote] = useState("");
-  const [awb, setAwb] = useState("");
-
-  // Catalog
-  const [catalogQuery, setCatalogQuery] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [products, setProducts] = useState([]);
-
-  // NEW: Send Catalogue recipients (multi-number)
-  const [catalogRecipients, setCatalogRecipients] = useState("");
-
-  // Polls
-  const [pollQ, setPollQ] = useState("");
-  const [pollOptions, setPollOptions] = useState(["Yes", "No"]);
-  const [pollMulti, setPollMulti] = useState(false);
-
-  // Leaderboard / Gamification
-  const [agents, setAgents] = useState([]);
-  const [boardPeriod, setBoardPeriod] = useState("day");
-
-  // Internal Agent Chat
-  const [internalMsgs, setInternalMsgs] = useState([]);
-  const [internalComposer, setInternalComposer] = useState("");
-
-  // CSAT Modal
-  const [showCSAT, setShowCSAT] = useState(false);
-  const [csat, setCsat] = useState(5);
-  const [csatNote, setCsatNote] = useState("");
-
-  // Follow-up scheduler
-  const [fuWhen, setFuWhen] = useState(""); // ISO string
-  const [fuNote, setFuNote] = useState("");
-
-  // Knowledge Base
-  const [kbQuery, setKbQuery] = useState("");
-  const [kbResults, setKbResults] = useState([]);
-
-  // Audit Logs & Shift Handover
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [shiftText, setShiftText] = useState("");
-
-  // KPI Dashboard
-  const [dashboardUrl, setDashboardUrl] = useState(defaultDashboardUrl);
-
-  // --- Backend status polling for connection badge ---
-  const [serverStatus, setServerStatus] = React.useState({ connected: false, phone: null });
-
-  React.useEffect(() => {
-   let mounted = true;
-    const poll = async () => {
-    try {
-      const res = await fetch("/api/status");
-      if (!res.ok) throw new Error("no status");
-      const j = await res.json();
-      if (mounted) setServerStatus({ connected: true, phone: j.phoneNumber || null });
-    } catch (e) {
-      if (mounted) setServerStatus({ connected: false, phone: null });
-    }
-  };
-  poll();
-  const id = setInterval(poll, 10000); // poll every 10s
-  return () => { mounted = false; clearInterval(id); };
-}, []);
-
-  
-  // Offline Outbox
-  const outboxKey = "kaapav_outbox";
+  // Menu visibility (desktop + mobile)
+  const [menuOpen, setMenuOpen] = useState(true);
 
   const socketRef = useRef(null);
-  const internalSockRef = useRef(null);
-  const messagesEndRef = useRef(null);
   const typingTimeout = useRef(null);
 
-  // --- place this in AdminWhatsAppPanel() just before sockets are created / or before any useEffect that opens sockets ---
+  // ======= ACTION DRAWER =======
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeAction, setActiveAction] = useState(null); // 'pay' | 'catalogue' | 'ship' | 'broadcast'
+  const [toast, setToast] = useState(null);
 
-// quick helper - read token
-const storedToken = (typeof window !== 'undefined') ? (localStorage.getItem("ADMIN_TOKEN") || "").trim() : "";
+  // Pay Link
+  const [amount, setAmount] = useState("");
+  const [payNote, setPayNote] = useState("");
 
-if (!storedToken) {
-  // Render a minimal login/token entry UI to protect the app when no token is present
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: 420, boxShadow: '0 6px 20px rgba(0,0,0,0.08)', borderRadius: 8, padding: 20, background: '#fff' }}>
-        <h2 style={{ margin: 0, marginBottom: 8 }}>Admin Login — Provide token</h2>
-        <p style={{ marginTop: 0, marginBottom: 12, color: '#666', fontSize: 13 }}>This panel requires an admin token. Paste it here (or use your SSO to inject ADMIN_TOKEN into localStorage).</p>
+  // Catalogue
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [products, setProducts] = useState([]);
+  const [catalogRecipients, setCatalogRecipients] = useState("");
 
-        <label style={{ display: 'block', marginBottom: 6, fontSize: 13 }}>Admin token</label>
-        <input id="admin_token_input" type="text" style={{ width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #ddd', marginBottom: 12 }} placeholder="paste ADMIN_TOKEN here" />
+  // Shiprocket
+  const [awb, setAwb] = useState("");
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => {
-              const v = (document.getElementById('admin_token_input')?.value || '').trim();
-              if (!v) { alert('Please provide a token'); return; }
-              localStorage.setItem('ADMIN_TOKEN', v);
-              // reload so effect hooks pick token and connect sockets
-              window.location.reload();
-            }}
-            style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: '#0ea5a4', color: '#fff' }}
-          >
-            Save token & reload
-          </button>
+  // Broadcast
+  const [broadcastText, setBroadcastText] = useState("");
+  const [broadcastTag, setBroadcastTag] = useState("ALL");
 
-          <button
-            onClick={() => {
-              // optional: quick demo token (only if you want)
-              // localStorage.setItem('ADMIN_TOKEN', 'demo-token');
-              // window.location.reload();
-              alert('If you have an external login, open it in another tab to set ADMIN_TOKEN or paste the token here.');
-            }}
-            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd', background: '#fff' }}
-          >
-            Need help
-          </button>
-        </div>
-
-        <div style={{ marginTop: 12, fontSize: 12, color: '#888' }}>
-          Tip: your SSO / login page can postMessage the token: window.postMessage({type:'KAAPAV_SET_TOKEN', token:'...'}, window.location.origin)
-        </div>
-      </div>
-    </div>
-  );
-}
-
-  // ===== PostMessage listener for token (Odoo -> iframe) =====
-  useEffect(() => {
-    const onMessage = (ev) => {
-      try {
-        const data = ev?.data || {};
-        if (data && data.type === "KAAPAV_SET_TOKEN") {
-          if (data.token && typeof data.token === "string") {
-            localStorage.setItem("ADMIN_TOKEN", data.token);
-            // if reload requested, refresh to pick token and connect sockets
-            if (data.reload) {
-              window.location.reload();
-            }
-          }
-        }
-      } catch (e) { /* ignore */ }
-    };
-    window.addEventListener("message", onMessage, false);
-    return () => window.removeEventListener("message", onMessage, false);
-  }, []);
-
-  // ===== EFFECTS =====
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-    localStorage.setItem("darkMode", String(dark));
-  }, [dark]);
-
-  useEffect(() => { localStorage.setItem("tenant", tenant); }, [tenant]);
-  useEffect(() => { localStorage.setItem("role", role); }, [role]);
-
-  // Alerts polling
-  useEffect(() => {
-    let stop = false;
-    const poll = async () => {
-      try {
-        const r = await fetch(`${apiBase}/alerts/feed?tenant=${tenant}`);
-        const j = await r.json();
-        if (!stop) setAlerts(Array.isArray(j) ? j : []);
-      } catch {}
-    };
-    poll();
-    const t = setInterval(poll, 20000);
-    return () => { stop = true; clearInterval(t); };
-  }, [tenant]);
-
- // ---------- START REPLACEMENT: Main socket (customer chat) ----------
-/**
- * Main socket (customer chat)
- * - Connects using token from localStorage
- * - Reconnects when token or tenant changes
- * - Robust handlers: sessions_snapshot, incoming_message, session_messages, typing
- * - Keeps sessions list in sync and maintains unread counts
- */
-useEffect(() => {
-  // helpers
-  const upsertSession = (sess) => {
-    // sess: { userId, name, lastMessage, unread }
-    setSessions(prev => {
-      const found = (prev || []).find(s => s.userId === sess.userId);
-      if (found) {
-        return prev.map(s => s.userId === sess.userId ? { ...s, ...sess } : s);
-      } else {
-        // new session goes to top
-        return [{ ...sess }, ...prev];
-      }
-    });
+  // ======= HELPERS =======
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
   };
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
 
-  const addMessageToState = (m) => {
-    setMessages(prev => {
-      const arr = [...(prev || []), m];
-      // auto-scroll when messages updated for selected session
-      setTimeout(() => {
-        try { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); } catch(e){}
-      }, 30);
-      return arr;
-    });
-  };
-
-  // get token each time (supports postMessage set)
-  const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
-  if (!currentToken) {
-    console.warn('[AdminPanel] no ADMIN_TOKEN available — socket not started');
-    return; // don't attempt socket connect without token
-  }
-
-  // build socket options — explicit path ensures same as nginx (/socket.io)
-  const sock = io(socketUrl, {
-    path: '/socket.io',
-    auth: { token: currentToken, tenant },
-    transports: ['websocket'],
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-    autoConnect: true,
-  });
-
-  socketRef.current = sock;
-  console.log('[AdminPanel] socket connecting to', socketUrl);
-
-  sock.on('connect', () => {
-    console.log('[AdminPanel] socket connected', sock.id);
-    setConnected(true);
-    // request an initial snapshot if backend doesn't proactively emit it
-    try { sock.emit('request_sessions_snapshot'); } catch(e){}
-    flushOutbox();
-  });
-
-  sock.on('disconnect', (reason) => {
-    console.warn('[AdminPanel] socket disconnected', reason);
-    setConnected(false);
-  });
-
-  // full sessions snapshot (replace list)
-  sock.on('sessions_snapshot', (list = []) => {
-    console.log('[AdminPanel] sessions_snapshot', list?.length);
-    // normalize entries to { userId, name, lastMessage, unread }
-    const normalized = (list || []).map(s => ({
-      userId: s.userId || s.id || s.user || s.name || (s.phone || '').toString(),
-      name: s.name || s.displayName || s.userId || '',
-      lastMessage: s.lastMessage || s.preview || '',
-      unread: typeof s.unread === 'number' ? s.unread : (s.unreadCount || 0)
-    }));
-    setSessions(normalized);
-  });
-
-  // incoming message from backend (real-time)
-  sock.on('incoming_message', (m) => {
-    try {
-      console.log('[AdminPanel] incoming_message', m);
-      // arrive as raw message — normalize
-      const userId = m.userId || m.from || m.fromNumber || m.from_user || m.to;
-      const normalized = {
-        id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-        from: m.from || userId,
-        to: m.to,
-        text: m.text || (m.message && m.message.text) || '',
-        media: m.media || null,
-        ts: m.ts || m.createdAt || Date.now(),
-        status: m.status || 'delivered',
-        direction: 'in'
-      };
-
-      // If the message belongs to the currently selected session, append to messages
-      if (selected && (String(selected) === String(userId))) {
-        addMessageToState(normalized);
-      } else {
-        // bump session and increment unread
-        upsertSession({
-          userId,
-          name: m.name || m.displayName || userId,
-          lastMessage: normalized.text || '[media]',
-          unread: 1 // increment below
-        });
-        // increment unread if session exists
-        setSessions(prev => (prev || []).map(s => {
-          if (String(s.userId) === String(userId)) {
-            return { ...s, unread: (Number(s.unread) || 0) + 1, lastMessage: normalized.text || '[media]' };
-          }
-          return s;
-        }));
-      }
-
-      // optionally run assistors
-      safeRunSentiment(normalized);
-      if (autoAssist) safeSuggest(normalized);
-    } catch (e) {
-      console.error('incoming_message handler error', e);
-    }
-  });
-
-  // messages history for a session
-  sock.on('session_messages', (list = []) => {
-    console.log('[AdminPanel] session_messages length=', (list||[]).length);
-    const mapped = (list || []).map(x => ({
-      id: x.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-      from: x.from,
-      text: x.text || x.message?.text || '',
-      media: x.media || null,
-      ts: x.ts || x.createdAt || Date.now(),
-      status: x.status || (x.direction === 'out' ? 'sent' : 'delivered'),
-      direction: x.direction || (x.from === 'admin' ? 'out' : 'in')
-    }));
-    setMessages(mapped);
-    // reset unread for this selected session
-    if (selected) {
-      setSessions(prev => (prev || []).map(s => s.userId === selected ? { ...s, unread: 0 } : s));
-    }
-    // scroll to bottom
-    setTimeout(()=> { try { messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' }); } catch(e){} }, 40);
-  });
-
-  // typing indicator
-  sock.on('typing', (data) => {
-    setIsCustomerTyping(true);
-    clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(()=> setIsCustomerTyping(false), 2500);
-  });
-
-  // fallback: errors
-  sock.on('connect_error', (err) => {
-    console.error('[AdminPanel] socket connect_error', err && err.message ? err.message : err);
-  });
-
-  // cleanup on unmount or deps change
-  return () => {
-    try { sock.disconnect(); } catch(e) {}
-    socketRef.current = null;
-  };
-}, [tenant, /* do not include token here; token read from localStorage at connect time */]);
-
-
-    // Load KPI embed URL (optional)
-    (async () => {
-      try {
-        if (!defaultDashboardUrl) {
-          const r = await fetch(`${apiBase}/analytics/kpi-embed?tenant=${tenant}`);
-          const j = await r.json();
-          if (j?.url) setDashboardUrl(j.url);
-        }
-      } catch {}
-    })();
-
-    return () => sock.disconnect();
-  }, [autoAssist, tenant]); // token is read from localStorage inside effect
-
-  // Internal agent chat socket
-  useEffect(() => {
-    const currentToken = (localStorage.getItem("ADMIN_TOKEN") || "").trim();
-    const isAllowed = role === "admin" || role === "agent";
-    if (!currentToken || !isAllowed) return;
-    const sock = io(internalSocketUrl, { auth: { token: currentToken, tenant }, transports: ["websocket"] });
-    internalSockRef.current = sock;
-    sock.on("internal_message", (m) => setInternalMsgs((p) => [...p, { ...m, ts: m.ts || Date.now() }]));
-    return () => sock.disconnect();
-  }, [role, tenant]);
-
-  // Load convo + profile + 360 + upsell on select
-  useEffect(() => {
-    if (!selected) return;
-    (async () => {
-      try {
-        const [h, p, v, u] = await Promise.all([
-          fetch(`${apiBase}/messages/history?tenant=${tenant}&user=${selected}`).then(r=>r.json()).catch(()=>[]),
-          fetch(`${apiBase}/crm/profile?tenant=${tenant}&user=${selected}`).then(r=>r.json()).catch(()=>({})),
-          fetch(`${apiBase}/crm/360?tenant=${tenant}&user=${selected}`).then(r=>r.json()).catch(()=>null),
-          fetch(`${apiBase}/ai/upsell?tenant=${tenant}&user=${selected}`).then(r=>r.json()).catch(()=>[]),
-        ]);
-        setMessages((h||[]).map(x => normalizeMsg(x, x.direction)));
-        setProfile(p || {});
-        setNotes(p?.notes || "");
-        setTags(p?.tags || []);
-        setAssignTo(p?.assignedTo || "");
-        setView360(v);
-        setUpsell(Array.isArray(u) ? u : []);
-      } catch {}
-    })();
-  }, [selected, tenant]);
-
-  // Leaderboard auto-refresh (also returns streaks/badges)
-  useEffect(() => {
-    let stop = false;
-    const load = async () => {
-      try {
-        const res = await fetch(`${apiBase}/analytics/agents?tenant=${tenant}&period=${boardPeriod}`);
-        const data = await res.json();
-        if (!stop) setAgents(Array.isArray(data) ? data : []);
-      } catch {}
-    };
-    load();
-    const t = setInterval(load, 30000);
-    return () => { stop = true; clearInterval(t); };
-  }, [boardPeriod, tenant]);
-
-  // ===== HELPERS =====
   const normalizeMsg = (m, direction) => ({
-    id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+    id: m.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     from: m.from,
     to: m.to,
     text: m.text || "",
@@ -478,69 +109,99 @@ useEffect(() => {
     ts: m.ts || Date.now(),
     status: m.status || (direction === "out" ? "sent" : "delivered"),
     direction: direction === "out" ? "out" : "in",
-    internal: !!m.internal,
   });
 
-  const safeRunSentiment = async (msg) => {
-    try {
-      const res = await fetch(`${apiBase}/ai/sentiment?tenant=${tenant}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: msg.text })
-      });
-      const data = await res.json();
-      setSentiment(data.label);
-    } catch (e) { console.warn("sentiment failed", e); }
-  };
+  const filteredSessions = useMemo(() => {
+    const q = sessionFilter.toLowerCase();
+    return (sessions || []).filter(
+      (s) =>
+        !q ||
+        (s.name || s.userId || "").toLowerCase().includes(q) ||
+        (s.lastMessage || "").toLowerCase().includes(q)
+    );
+  }, [sessions, sessionFilter]);
 
-  const safeLeadScore = async (msg) => {
-    const text = (msg?.text || "").toLowerCase();
-    let score = 0; let label = "Cold";
-    if (/(buy|price|order|payment|cod|deliver)/.test(text)) score += 60;
-    if (/(today|now|urgent|immediately)/.test(text)) score += 30;
-    if (/(discount|offer)/.test(text)) score += 10;
-    if (score >= 75) label = "Hot"; else if (score >= 40) label = "Warm";
-    setLeadScore({ label, score });
-  };
+  // ======= SOCKET =======
+  useEffect(() => {
+    if (!token) return;
+    const sock = io(socketUrl, { auth: { token }, transports: ["websocket"] });
+    socketRef.current = sock;
 
-  const safeSuggest = async (msg) => {
-    setAiBusy(true);
+    sock.on("connect", () => setConnected(true));
+    sock.on("disconnect", () => setConnected(false));
+    sock.on("sessions_snapshot", (list) => setSessions(list || []));
+
+    sock.on("incoming_message", (m) => {
+      setMessages((p) => [...p, { ...m, direction: "in" }]);
+      setIsTyping(false);
+    });
+    sock.on("outgoing_message", (m) =>
+      setMessages((p) => [...p, { ...m, direction: "out" }])
+    );
+
+    sock.on("session_messages", (list = []) => {
+      setMessages(
+        list.map((m) =>
+          normalizeMsg({ ...m, text: m.text || m.message?.text || "" }, m.direction)
+        )
+      );
+    });
+
+    sock.on("typing", () => {
+      setIsTyping(true);
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = setTimeout(() => setIsTyping(false), 2500);
+    });
+
+    return () => sock.disconnect();
+  }, [token]);
+
+  // ======= LOGIN (Username/Password -> JWT) =======
+  const doLogin = async (e) => {
+    e?.preventDefault?.();
+    setAuthBusy(true);
     try {
-      const res = await fetch(`${apiBase}/ai/suggest?tenant=${tenant}`, {
+      const res = await fetch(`${apiBase}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: selected, last: msg.text })
+        body: JSON.stringify({ username: login.username.trim(), password: login.password }),
       });
-      const data = await res.json();
-      setSuggestions(Array.isArray(data) ? data : []);
-    } catch (e) { console.warn("suggest failed", e); }
-    finally { setAiBusy(false); }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json();
+      const t = (j?.token || j?.accessToken || "").trim();
+      if (!t) throw new Error("No token returned");
+      localStorage.setItem("ADMIN_TOKEN", t);
+      setToken(t);
+      setLoginView(false);
+      showToast("Logged in");
+    } catch (err) {
+      console.error(err);
+      showToast("Login failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+  const doLogout = () => {
+    localStorage.removeItem("ADMIN_TOKEN");
+    setToken("");
+    setLoginView(true);
   };
 
-  // Offline queue helpers
-  const enqueueOutbox = (item) => {
-    try {
-      const cur = JSON.parse(localStorage.getItem(outboxKey) || "[]");
-      localStorage.setItem(outboxKey, JSON.stringify([...cur, item]));
-    } catch {}
-  };
-  const flushOutbox = () => {
-    try {
-      const cur = JSON.parse(localStorage.getItem(outboxKey) || "[]");
-      if (!cur.length) return;
-      cur.forEach((it) => socketRef.current?.emit("admin_send_message", it));
-      localStorage.removeItem(outboxKey);
-    } catch {}
-  };
-
-  // FIXED: use composer and selected state (was composerText/selectedSession)
+  // ======= CHAT =======
   const sendMessage = () => {
     const text = (composer || "").trim();
     if (!text || !selected) return;
     const msg = { to: selected, text };
     socketRef.current?.emit("admin_send_message", msg);
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
-      { ...msg, from: "admin", direction: "out", ts: Date.now(), id: `${Date.now()}_${Math.random().toString(36).slice(2,8)}` },
+      {
+        ...msg,
+        from: "admin",
+        direction: "out",
+        ts: Date.now(),
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      },
     ]);
     setComposer("");
   };
@@ -550,721 +211,694 @@ useEffect(() => {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("to", selected);
-    const res = await fetch(`${apiBase}/messages/upload?tenant=${tenant}`, { method: "POST", body: fd });
-    const msg = await res.json();
-    setMessages((prev)=>[...prev, normalizeMsg(msg, "out")]);
+    try {
+      const res = await fetch(`${apiBase}/messages/upload`, {
+        method: "POST",
+        headers: { ...authHeader },
+        body: fd,
+      });
+      const msg = await res.json();
+      setMessages((p) => [...p, normalizeMsg(msg, "out")]);
+      showToast("Media sent");
+    } catch {}
   };
 
-  const saveNotes = async () => {
-    await fetch(`${apiBase}/crm/notes?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ user: selected, notes }) });
+  // ======= ACTIONS (Pay, Catalogue, Ship, Broadcast) =======
+  const openAction = (a) => {
+    setActiveAction(a);
+    setDrawerOpen(true);
   };
-  const saveTags = async () => {
-    await fetch(`${apiBase}/crm/tags?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ user: selected, tags }) });
-  };
-  const saveAssign = async () => {
-    await fetch(`${apiBase}/crm/assign?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ user: selected, assignedTo: assignTo }) });
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setActiveAction(null);
   };
 
-  const createPaymentLink = async () => {
-    if (!selected || !amount) return;
-    await fetch(`${apiBase}/razorpay/link?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ to: selected, amount: Number(amount), note: payNote }) });
+  const submitPayment = async () => {
+    const to =
+      selected ||
+      (catalogRecipients || DEFAULT_WA)
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+    if (!to || (Array.isArray(to) && to.length === 0)) {
+      showToast("Pick a chat or add a number");
+      return;
+    }
+    if (!amount) return;
+    try {
+      await fetch(`${apiBase}/razorpay/link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ to, amount: Number(amount), note: payNote }),
+      });
+      showToast("Payment link sent");
+      setAmount("");
+      setPayNote("");
+      setCatalogRecipients("");
+      if (autoHideActions) closeDrawer();
+    } catch (e) {
+      showToast("Failed to send link");
+    }
   };
-  const checkShipment = async () => {
-    if (!selected || !awb) return;
-    await fetch(`${apiBase}/shiprocket/status?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ to: selected, awb }) });
+
+  const searchCatalog = async () => {
+    try {
+      const r = await fetch(
+        `${apiBase}/catalog/search?q=${encodeURIComponent(catalogQuery || "")}`,
+        { headers: { ...authHeader } }
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      setProducts(Array.isArray(j) ? j : j?.items || []);
+    } catch {
+      setProducts([]);
+    }
+  };
+
+  const sendCatalogue = async (pid) => {
+    try {
+      const to = selected
+        ? [selected]
+        : (catalogRecipients || "")
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean);
+      if (!to.length) {
+        showToast("Add at least one number");
+        return;
+      }
+      await fetch(`${apiBase}/messages/catalogue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ to, productId: pid }),
+      });
+      showToast("Catalogue sent");
+      if (autoHideActions) closeDrawer();
+    } catch {
+      showToast("Failed to send catalogue");
+    }
+  };
+
+  const trackShipment = async () => {
+    if (!awb.trim()) return;
+    try {
+      await fetch(`${apiBase}/shiprocket/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ to: selected || undefined, awb }),
+      });
+      showToast("Tracking pushed");
+      setAwb("");
+      if (autoHideActions) closeDrawer();
+    } catch {
+      showToast("Failed to track");
+    }
   };
 
   const doBroadcast = async () => {
     if (!broadcastText.trim()) return;
-    await fetch(`${apiBase}/broadcast?tenant=${tenant}`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ tag: broadcastTag, text: broadcastText, drip: dripEnabled }) });
-    setBroadcastText("");
-  };
-
-  // Catalog
-  const searchCatalog = async () => {
-    setCatalogLoading(true);
     try {
-      const res = await fetch(`${apiBase}/catalog/search?tenant=${tenant}&q=${encodeURIComponent(catalogQuery || "")}`);
-      const data = await res.json();
-      setProducts(Array.isArray(data) ? data : []);
-    } catch (e) { setProducts([]); } finally { setCatalogLoading(false); }
-  };
-  const sendProductCard = async (pid) => {
-    if (!selected) return;
-    await fetch(`${apiBase}/messages/product?tenant=${tenant}`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ to: selected, productId: pid })
-    });
-  };
-
-  // Polls
-  const addPollOpt = () => setPollOptions((o)=>[...o, "Option "+(o.length+1)]);
-  const remPollOpt = (i) => setPollOptions((o)=> o.length>2 ? o.filter((_,idx)=>idx!==i) : o);
-  const updatePollOpt = (i, val) => setPollOptions((o)=> o.map((oo,idx)=> idx===i ? val : oo));
-  const sendPoll = async () => {
-    if (!selected || !pollQ.trim() || pollOptions.some(o=>!o.trim())) return;
-    await fetch(`${apiBase}/messages/poll?tenant=${tenant}`, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ to: selected, question: pollQ, options: pollOptions, multi: pollMulti })
-    });
-    setPollQ("");
-  };
-
-  // CSAT submit
-  const submitCSAT = async () => {
-    try {
-      await fetch(`${apiBase}/csat/submit?tenant=${tenant}`, {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ user: selected, score: Number(csat), note: csatNote })
+      await fetch(`${apiBase}/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify({ tag: broadcastTag, text: broadcastText }),
       });
-      setShowCSAT(false); setCsat(5); setCsatNote("");
-    } catch {}
-  };
-
-  // Shift handover
-  const loadShift = async () => {
-    try {
-      const r = await fetch(`${apiBase}/ai/shifthandover?tenant=${tenant}`);
-      const j = await r.json();
-      setShiftText(j?.summary || JSON.stringify(j, null, 2));
-    } catch { setShiftText("(failed to load)"); }
-  };
-
-  // Knowledge search
-  const runKnowledge = async () => {
-    try {
-      const r = await fetch(`${apiBase}/ai/knowledge?tenant=${tenant}&q=${encodeURIComponent(kbQuery)}`);
-      const j = await r.json();
-      setKbResults(Array.isArray(j) ? j : (j?.results || []));
-    } catch { setKbResults([]); }
-  };
-
-  // Audit logs
-  const loadAudit = async () => {
-    try {
-      const r = await fetch(`${apiBase}/audit/logs?tenant=${tenant}`);
-      const j = await r.json();
-      setAuditLogs(Array.isArray(j) ? j : []);
-    } catch { setAuditLogs([]); }
-  };
-
-  // Transcription
-  const sendVoiceNote = async (file) => {
-    if (!file || !selected) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("user", selected);
-    try {
-      const r = await fetch(`${apiBase}/ai/transcribe?tenant=${tenant}`, { method: "POST", body: fd });
-      const j = await r.json();
-      if (j?.text) setComposer((prev) => prev ? prev + "\n" + j.text : j.text);
-    } catch {}
-  };
-
-  const sendInternal = () => {
-    if (!internalComposer.trim()) return;
-    internalSockRef.current?.emit("internal_send", { text: internalComposer });
-    setInternalMsgs((p) => [...p, { from: "me", text: internalComposer, ts: Date.now() }]);
-    setInternalComposer("");
-  };
-
-  const filteredSessions = useMemo(() => {
-    const q = sessionFilter.toLowerCase();
-    return (sessions || []).filter(s => !q || (s.name||s.userId||"").toLowerCase().includes(q) || (s.tags||[]).join(",").toLowerCase().includes(q));
-  }, [sessions, sessionFilter]);
-
-  const fmt = (n) => new Intl.NumberFormat(undefined,{style:'currency',currency:'INR'}).format(Number(n||0));
-
-  const canSee = (feature) => {
-    // simple role gate
-    if (role === "admin") return true;
-    if (role === "agent") return !["analytics","smartCampaigns"].includes(feature);
-    if (role === "viewer") return ["leaderboard","analytics"].includes(feature) === false ? false : true;
-    return true;
-  };
-
-  // ===== UI =====
-return (
-  // top-level: ensure viewport height
-  <div className="min-h-screen h-screen grid grid-rows-[auto,auto,1fr] bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-    {/* Header */}
-    <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
-      <div className="flex items-center gap-2">
-        <MessageCircle className="text-[#C4952F]" />
-        <div className="font-semibold">KAAPAV Cockpit</div>
-        <Badge variant={connected ? "default" : "secondary"} className={connected ? "bg-green-500" : ""}>
-          {connected ? "Connected" : "Offline"}
-        </Badge>
-        {serverStatus.connected && (
-          <Badge variant="outline" className="ml-2 bg-emerald-50 text-emerald-700 border-emerald-200">
-            {`Number: ${serverStatus.phone || '…'}`}
-          </Badge>
-        )}
-
-        {sentiment && (<Badge variant="outline" className="ml-2">Mood: {sentiment}</Badge>)}
-        {leadScore?.label && (
-          <Badge variant="outline" className="ml-2 flex items-center gap-1">
-            <Star className="w-3 h-3" /> {leadScore.label} ({leadScore.score})
-          </Badge>
-        )}
-      </div>
-      <div className="flex items-center gap-3">
-        {/* Tenant & Role */}
-        <div className="flex items-center gap-2">
-          <Label className="text-xs">Tenant</Label>
-          <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={tenant} onChange={(e)=>setTenant(e.target.value)}>
-            <option value="kaapav-default">kaapav-default</option>
-            <option value="kaapav-fashion">kaapav-fashion</option>
-            <option value="kaapav-foods">kaapav-foods</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <Label className="text-xs">Role</Label>
-          <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={role} onChange={(e)=>setRole(e.target.value)}>
-            <option value="admin">admin</option>
-            <option value="agent">agent</option>
-            <option value="viewer">viewer</option>
-          </select>
-        </div>
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-2 top-2.5 opacity-50" />
-          <Input className="pl-8 w-64" placeholder="Search sessions…" value={sessionFilter} onChange={(e)=>setSessionFilter(e.target.value)} />
-        </div>
-        <div className="flex items-center gap-2">
-          <Label htmlFor="autoAssist" className="text-xs opacity-70">Auto-Assist</Label>
-          <Switch id="autoAssist" checked={autoAssist} onCheckedChange={setAutoAssist} />
-        </div>
-        <Button variant="outline" size="sm" onClick={()=>setDark(!dark)}>
-          {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </Button>
-      </div>
-    </div>
-
-    {/* Alerts banner */}
-    {alerts && alerts.length>0 && (
-      <div className="px-3 py-2 bg-red-600 text-white text-sm flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4"/>
-        <div className="font-medium">Anomalies detected</div>
-        <div className="opacity-90 truncate">{alerts.slice(0,3).map(a=>a.title||a.message).join(" • ")}{alerts.length>3?` (+${alerts.length-3})`:''}</div>
-      </div>
-    )}
-
-    {/* Main: add min-h-0 so children with overflow-auto can shrink/scroll */}
-    <div className="grid grid-cols-12 gap-3 p-3 overflow-hidden min-h-0 h-full">
-      {/* Left — Sessions: make full-height + allow internal scroll */}
-      <div className="col-span-3 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden h-full min-h-0">
-        <div className="h-full overflow-auto divide-y divide-gray-100 dark:divide-gray-800 min-h-0">
-          {filteredSessions.map((s) => (
-            <div key={s.userId}
-                 className={`px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${selected===s.userId? 'bg-gray-50 dark:bg-gray-800' : ''}`}
-                 onClick={() => {
-                   setSelected(s.userId);
-                   socketRef.current?.emit("fetch_session_messages", s.userId);
-                 }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="font-medium flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70" />{s.name||s.userId}</div>
-                {s.unread>0 && <Badge className="bg-[#C4952F] text-white">{s.unread}</Badge>}
-              </div>
-              <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
-              <div className="mt-1 flex gap-1 flex-wrap">
-                {(s.tags||[]).slice(0,4).map((t,i)=>(<Badge key={i} variant="outline" className="text-[10px]">{t}</Badge>))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Middle — Chat: ensure flex column and allow the message list to scroll */}
-      <div className="col-span-6 flex flex-col rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden h-full min-h-0">
-        <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BadgeCheck className="w-4 h-4 text-emerald-500" />
-            <div className="font-semibold">{selected || 'No session selected'}</div>
-          </div>
-          <div className="flex items-center gap-2 text-xs opacity-70">
-            <Clock className="w-3 h-3" /> {new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
-            <Button size="sm" variant="outline" onClick={()=>setShowCSAT(true)} className="ml-2"><BadgeInfo className="w-3 h-3 mr-1"/>End & CSAT</Button>
-          </div>
-        </div>
-
-        {/* Messages area: flex-1 + overflow-auto + min-h-0 (critical) */}
-        <div className="flex-1 overflow-auto p-4 space-y-3 min-h-0">
-          {isCustomerTyping && <div className="text-xs opacity-70 pl-2">Customer is typing…</div>}
-          {messages.map((m)=>{
-            const isOut = m.direction === 'out' || m.from === 'admin';
-            const bubble = (
-              <div className={`max-w-[78%] p-3 rounded-2xl shadow ${isOut? 'ml-auto bg-gradient-to-r from-[#D4AF37] to-[#C4952F] text-white' : 'mr-auto bg-gray-200 dark:bg-gray-800'}`}>
-                <div className="text-[10px] opacity-60 mb-1 flex items-center gap-1">
-                  {isOut? 'You' : (m.from||'User')} • {new Date(m.ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                  {isOut && <StatusTick status={m.status} />}
-                </div>
-                {m.media ? (
-                  <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
-                ) : (
-                  <div className="text-sm whitespace-pre-wrap">{m.text}</div>
-                )}
-              </div>
-            );
-            return <div key={m.id}>{bubble}</div>
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Composer: keep it at bottom */}
-        <div className="p-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2">
-          <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
-            <Upload className="w-4 h-4" /> Attach
-            <input type="file" className="hidden" onChange={(e)=>uploadMedia(e.target.files?.[0])} />
-          </label>
-          <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2">
-            <Mic className="w-4 h-4" /> Voice
-            <input type="file" accept="audio/*" className="hidden" onChange={(e)=>sendVoiceNote(e.target.files?.[0])} />
-          </label>
-          <Textarea rows={2} className="flex-1" placeholder={selected? 'Type a reply…' : 'Select a session to chat'} disabled={!selected}
-                    value={composer}
-                    onChange={(e)=>setComposer(e.target.value)}
-                    onKeyDown={(e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); } }} />
-          <Button onClick={sendMessage} disabled={!selected} className="bg-[#C4952F] text-white"><Send className="w-4 h-4" /></Button>
-        </div>
-
-        {/* AI Suggestions */}
-        {suggestions.length>0 && (
-          <div className="px-3 pb-3 flex flex-wrap gap-2">
-            {suggestions.map((sug,idx)=>(
-              <Button key={idx} size="sm" variant="outline" onClick={()=>setComposer(sug)} className="text-xs">
-                <Sparkles className="w-3 h-3 mr-1"/> {sug}
-              </Button>
-            ))}
-            {aiBusy && <span className="text-xs opacity-60">Thinking…</span>}
-          </div>
-        )}
-      </div>
-
-      {/* Right — CRM & Actions: allow scroll and full height */}
-      <div className="col-span-3 flex flex-col gap-3 overflow-auto h-full min-h-0">
-
-
-          {/* CRM Card */}
-          <Card className="overflow-hidden">
-            <CardContent className="p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold flex items-center gap-2"><UserCircle2 className="w-4 h-4 opacity-70"/>CRM</div>
-                {sentiment && <Badge variant="outline">Mood: {sentiment}</Badge>}
-              </div>
-              <div className="text-xs opacity-70">{profile?.name || selected || '—'}</div>
-              <div className="flex gap-1 flex-wrap">
-                {tags.map((t,i)=>(<Badge key={i} variant="secondary" className="text-[10px]">{t}</Badge>))}
-              </div>
-              <div className="flex gap-2">
-                <Input placeholder="Assign to" value={assignTo} onChange={(e)=>setAssignTo(e.target.value)} />
-                <Button size="sm" variant="outline" onClick={saveAssign}>Save</Button>
-              </div>
-              <div>
-                <Label className="text-xs">Notes</Label>
-                <Textarea rows={3} value={notes} onChange={(e)=>setNotes(e.target.value)} />
-                <div className="mt-1 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={saveNotes}><NotebookPen className="w-3 h-3 mr-1"/>Save</Button>
-                  <Button size="sm" variant="outline" onClick={saveTags}><Tags className="w-3 h-3 mr-1"/>Save Tags</Button>
-                </div>
-              </div>
-              {/* 360 */}
-              <div className="rounded-lg border dark:border-gray-800 p-2 text-xs">
-                <div className="font-medium mb-1">Customer 360°</div>
-                {!view360 && <div className="opacity-60">No data</div>}
-                {view360 && (
-                  <div className="space-y-1">
-                    <div>Orders: <b>{view360.orders||0}</b> • Revenue: <b>{fmt(view360.revenue||0)}</b></div>
-                    <div>Last Seen: {view360.lastSeen||'-'}</div>
-                    <div>Tags: {(view360.tags||[]).join(', ')||'-'}</div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Commerce Card */}
-          {canSee("commerce") && (
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><ShoppingCart className="w-4 h-4"/> Sales</div>
-              <div className="flex gap-2 items-center">
-                <Input placeholder="Amount" value={amount} onChange={(e)=>setAmount(e.target.value)} className="w-24" />
-                <Input placeholder="Note" value={payNote} onChange={(e)=>setPayNote(e.target.value)} />
-                <Button size="sm" onClick={createPaymentLink}><CreditCard className="w-3 h-3 mr-1"/>Pay Link</Button>
-              </div>
-              <div className="flex gap-2 items-center">
-                <Input placeholder="AWB" value={awb} onChange={(e)=>setAwb(e.target.value)} />
-                <Button size="sm" variant="outline" onClick={checkShipment}><Truck className="w-3 h-3 mr-1"/>Track</Button>
-              </div>
-            </CardContent>
-          </Card>
-          )}
-
-          {/* Broadcast */}
-          {canSee("broadcast") && (
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Megaphone className="w-4 h-4"/> Broadcast</div>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Segment</Label>
-                <Input placeholder="Tag e.g. ALL / COD / Hot" value={broadcastTag} onChange={(e)=>setBroadcastTag(e.target.value)} />
-              </div>
-              <Textarea rows={3} placeholder="Message…" value={broadcastText} onChange={(e)=>setBroadcastText(e.target.value)} />
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Switch checked={dripEnabled} onCheckedChange={setDripEnabled} id="drip"/>
-                  <Label htmlFor="drip" className="text-xs">Drip (multi-step)</Label>
-                </div>
-                <Button size="sm" onClick={doBroadcast}><Send className="w-3 h-3 mr-1"/>Send</Button>
-              </div>
-            </CardContent>
-          </Card>
-          )}
-
-          {/* Catalog */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Package className="w-4 h-4"/> Catalog</div>
-              <div className="flex items-center gap-2">
-                <Input placeholder="Search product or SKU" value={catalogQuery} onChange={(e)=>setCatalogQuery(e.target.value)} />
-                <Button size="sm" variant="outline" onClick={searchCatalog}>Search</Button>
-              </div>
-              <div className="grid grid-cols-1 gap-2 max-h-40 overflow-auto">
-                {catalogLoading && <div className="text-xs opacity-60">Loading…</div>}
-                {!catalogLoading && products.length===0 && <div className="text-xs opacity-60">No products</div>}
-                {products.map(p=> (
-                  <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border dark:border-gray-800">
-                    {p.imageUrl ? <img src={p.imageUrl} alt={p.title} className="w-10 h-10 rounded object-cover"/> : <div className="w-10 h-10 rounded bg-gray-200"/>}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{p.title}</div>
-                      <div className="text-[11px] opacity-70">{p.sku} • {fmt(p.price)} • {p.stock>0? `${p.stock} in stock` : 'OOS'}</div>
-                    </div>
-                    <Button size="sm" onClick={()=>sendProductCard(p.id)}>Send</Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* NEW: Send Catalogue (multi-number, WhatsApp-friendly) */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2">
-                <Package className="w-4 h-4" /> Send Catalogue
-              </div>
-              <div className="text-xs opacity-70">
-                Enter one or multiple WhatsApp numbers (comma-separated). Must be in international format (e.g., 919876543210).
-              </div>
-              <Textarea
-                rows={2}
-                placeholder="e.g. 919812345678, 919876543210"
-                value={catalogRecipients}
-                onChange={(e) => setCatalogRecipients(e.target.value)}
-              />
-              <div className="grid grid-cols-1 gap-2 max-h-32 overflow-auto">
-                {products.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center gap-2 p-2 rounded-lg border dark:border-gray-800"
-                  >
-                    {p.imageUrl ? (
-                      <img
-                        src={p.imageUrl}
-                        alt={p.title}
-                        className="w-8 h-8 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded bg-gray-200" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{p.title}</div>
-                      <div className="text-[11px] opacity-70">
-                        {p.sku} • {fmt(p.price)}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        // Basic client-side validation for numbers
-                        const nums = catalogRecipients
-                          .split(",")
-                          .map((n) => n.trim())
-                          .filter(Boolean);
-
-                        if (nums.length === 0) {
-                          window.alert("Please enter at least one number.");
-                          return;
-                        }
-
-                        try {
-                          const res = await fetch(`${apiBase}/messages/catalogue?tenant=${tenant}`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              to: nums,          // array of numbers; backend should loop & send
-                              productId: p.id,   // product to include (product card / catalogue msg)
-                            }),
-                          });
-                          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                          window.alert("Catalogue sent ✅ (server will deliver via WhatsApp API)");
-                        } catch (e) {
-                          console.error(e);
-                          window.alert("Failed to send catalogue. Please try again.");
-                        }
-                      }}
-                    >
-                      Send
-                    </Button>
-                  </div>
-                ))}
-                {products.length === 0 && (
-                  <div className="text-xs opacity-60">
-                    Search products above, then send catalogue to selected numbers.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Polls */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><ListPlus className="w-4 h-4"/> Poll</div>
-              <Input placeholder="Question" value={pollQ} onChange={(e)=>setPollQ(e.target.value)} />
-              <div className="space-y-2">
-                {pollOptions.map((opt,idx)=> (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Input value={opt} onChange={(e)=>updatePollOpt(idx, e.target.value)} />
-                    <Button size="icon" variant="outline" onClick={()=>remPollOpt(idx)}><Minus className="w-4 h-4"/></Button>
-                  </div>
-                ))}
-                <Button size="sm" variant="outline" onClick={addPollOpt}><Plus className="w-4 h-4 mr-1"/>Add option</Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Switch checked={pollMulti} onCheckedChange={setPollMulti} id="multi"/>
-                  <Label htmlFor="multi" className="text-xs">Allow multiple</Label>
-                </div>
-                <Button size="sm" onClick={sendPoll} disabled={!selected}>Send</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Internal Agent Chat */}
-          {(role === 'admin' || role === 'agent') && (
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Users className="w-4 h-4"/> Internal Chat</div>
-              <div className="max-h-28 overflow-auto text-xs space-y-1">
-                {internalMsgs.map((m,i)=> (
-                  <div key={i} className={`p-2 rounded ${m.from==='me'?'bg-[#F8F5EF] text-[#3A2F16] ml-auto':'bg-gray-200 dark:bg-gray-800'} max-w-[85%]`}>{m.text}</div>
-                ))}
-                {internalMsgs.length===0 && <div className="opacity-60">No internal messages</div>}
-              </div>
-              <div className="flex gap-2">
-                <Input value={internalComposer} onChange={(e)=>setInternalComposer(e.target.value)} placeholder="Type note to team…" />
-                <Button size="sm" onClick={sendInternal}>Send</Button>
-              </div>
-            </CardContent>
-          </Card>
-          )}
-
-          {/* Follow-ups scheduler */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><CalendarClock className="w-4 h-4"/> Proactive Follow-up</div>
-              <Input type="datetime-local" value={fuWhen} onChange={(e)=>setFuWhen(e.target.value)} />
-              <Input placeholder="Follow-up note" value={fuNote} onChange={(e)=>setFuNote(e.target.value)} />
-              <Button size="sm" onClick={async ()=>{
-                if (!selected || !fuWhen) return;
-                await fetch(`${apiBase}/followup/schedule?tenant=${tenant}`, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ user: selected, when: fuWhen, note: fuNote }) });
-                setFuWhen(''); setFuNote('');
-              }}>Schedule</Button>
-            </CardContent>
-          </Card>
-
-          {/* Knowledge Base AI */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Bot className="w-4 h-4"/> Knowledge Base</div>
-              <div className="flex gap-2">
-                <Input placeholder="Search question…" value={kbQuery} onChange={(e)=>setKbQuery(e.target.value)} />
-                <Button size="sm" variant="outline" onClick={runKnowledge}>Search</Button>
-              </div>
-              <div className="max-h-28 overflow-auto text-xs space-y-2">
-                {kbResults.map((r,i)=>(<div key={i} className="p-2 rounded border dark:border-gray-800"><div className="font-medium">{r.title||`Result ${i+1}`}</div><div className="opacity-80">{r.snippet||r.text||''}</div></div>))}
-                {kbResults.length===0 && <div className="opacity-60 text-xs">No results</div>}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Leaderboard / Gamification */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Trophy className="w-4 h-4"/> Agent Leaderboard</div>
-              <div className="flex items-center gap-2 text-xs">
-                <Label>Period</Label>
-                <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={boardPeriod} onChange={(e)=>setBoardPeriod(e.target.value)}>
-                  <option value="day">Today</option>
-                  <option value="week">This Week</option>
-                  <option value="month">This Month</option>
-                </select>
-              </div>
-              <div className="max-h-48 overflow-auto text-sm">
-                <table className="w-full text-left">
-                  <thead className="text-[11px] opacity-70">
-                    <tr>
-                      <th className="py-1">Agent</th>
-                      <th className="py-1">Chats</th>
-                      <th className="py-1">FRT</th>
-                      <th className="py-1">CSAT</th>
-                      <th className="py-1">Streak</th>
-                      <th className="py-1">Badges</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agents.map((a, i)=> (
-                      <tr key={i} className="border-t dark:border-gray-800">
-                        <td className="py-1">{a.name}</td>
-                        <td className="py-1">{a.chats}</td>
-                        <td className="py-1">{a.firstResp || '-'}m</td>
-                        <td className="py-1">{a.csat ? a.csat+"%" : '-'}</td>
-                        <td className="py-1">{a.streak || '-'}</td>
-                        <td className="py-1 text-xs">{(a.badges||[]).join(', ')||'-'}</td>
-                      </tr>
-                    ))}
-                    {agents.length===0 && (
-                      <tr><td colSpan={6} className="py-2 text-xs opacity-60">No data</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Audit & Shift & KPI Tabs */}
-          <Tabs defaultValue="audit" className="w-full">
-            <TabsList className="grid grid-cols-3">
-              <TabsTrigger value="audit">Audit</TabsTrigger>
-              <TabsTrigger value="shift">Shift</TabsTrigger>
-              <TabsTrigger value="kpi">KPI</TabsTrigger>
-            </TabsList>
-            <TabsContent value="audit">
-              <Card>
-                <CardContent className="p-3 space-y-2">
-                  <div className="font-semibold flex items-center gap-2"><ClipboardList className="w-4 h-4"/> Audit Logs</div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={loadAudit}>Refresh</Button>
-                  </div>
-                  <div className="max-h-40 overflow-auto text-xs">
-                    <table className="w-full text-left">
-                      <thead className="opacity-70">
-                        <tr><th>Time</th><th>User</th><th>Action</th><th>Meta</th></tr>
-                      </thead>
-                      <tbody>
-                        {(auditLogs||[]).map((l,i)=> (
-                          <tr key={i} className="border-t dark:border-gray-800">
-                            <td className="py-1">{new Date(l.ts||Date.now()).toLocaleString()}</td>
-                            <td className="py-1">{l.user||'-'}</td>
-                            <td className="py-1">{l.action||'-'}</td>
-                            <td className="py-1 truncate">{typeof l.meta==='string'?l.meta:JSON.stringify(l.meta||{})}</td>
-                          </tr>
-                        ))}
-                        {(!auditLogs||auditLogs.length===0) && (<tr><td colSpan={4} className="py-2 opacity-60">No logs</td></tr>)}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="shift">
-              <Card>
-                <CardContent className="p-3 space-y-2">
-                  <div className="font-semibold flex items-center gap-2"><BadgeCheck className="w-4 h-4"/> Shift Handover</div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={loadShift}>Generate</Button>
-                  </div>
-                  <Textarea rows={8} value={shiftText} onChange={(e)=>setShiftText(e.target.value)} placeholder="Shift summary will appear here…" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="kpi">
-              <Card>
-                <CardContent className="p-0 overflow-hidden">
-                 {dashboardUrl ? (
-  <iframe
-    title="KPI"
-    src={
-      dashboardUrl ||
-      (typeof window !== "undefined"
-        ? `${window.location.origin}/dashboard`
-        : "https://www.crm.kaapav.com/dashboard")
+    
+      showToast("Broadcast queued");
+      setBroadcastText("");
+      if (autoHideActions) closeDrawer();
+    } catch {
+      showToast("Broadcast failed");
     }
-    className="w-full h-64 border-0"
-  />
-) : (
-  <div className="p-3 text-xs opacity-70">
-    No KPI dashboard URL configured
-  </div>
-)}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+  };
 
-          {/* Smart Campaigns (skeleton) */}
-          {canSee("smartCampaigns") && (
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><Filter className="w-4 h-4"/> Smart Campaigns</div>
-              <div className="text-xs opacity-70">Flow builder (placeholder). Drag blocks in future; for now just a stub list.</div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                {['Segment','Delay','Message','If CTR < X','Add Tag','Stop'].map((b,i)=>(
-                  <div key={i} className="p-2 rounded-lg border dark:border-gray-800 text-center">{b}</div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          )}
+  // ======= DEV SANITY TESTS (non-blocking) =======
+  useEffect(() => {
+    const isProd = (import.meta?.env?.MODE || "production") === "production";
+    if (isProd) return;
+    try {
+      console.assert(typeof socketUrl === "string" && socketUrl.length > 0, "socketUrl must be a string");
+      console.assert(typeof apiBase === "string" && apiBase.length > 0, "apiBase must be a string");
+      console.assert(typeof menuOpen === "boolean", "menuOpen should be boolean");
+      console.assert(typeof setMenuOpen === "function", "setMenuOpen should be function");
+      console.assert([null, "pay", "catalogue", "ship", "broadcast"].includes(activeAction), "activeAction must be valid or null");
+      console.assert(typeof autoHideActions === "boolean", "autoHideActions should be boolean");
+    } catch {}
+  }, [activeAction, autoHideActions, menuOpen]);
 
-          {/* Analytics quick note */}
-          <Card>
-            <CardContent className="p-3 space-y-2">
-              <div className="font-semibold flex items-center gap-2"><BarChart3 className="w-4 h-4"/> Analytics</div>
-              <div className="text-xs opacity-70">Live KPIs via Metabase iframe (see KPI tab).</div>
-            </CardContent>
-          </Card>
+  // ======= RENDER =======
+  if (loginView) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: PAPER }}>
+        <div
+          className="w-full max-w-sm rounded-2xl shadow p-5"
+          style={{ background: WHITE, border: `1px solid ${GOLD}33` }}
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <div
+              className="w-9 h-9 rounded-full grid place-items-center text-white"
+              style={{ background: GOLD }}
+            >
+              <Lock size={18} />
+            </div>
+            <div className="text-lg font-semibold" style={{ color: TEXT }}>
+              Kaapav Admin Login
+            </div>
+          </div>
+          <form onSubmit={doLogin} className="space-y-3">
+            <div>
+              <label className="text-xs opacity-70">Username</label>
+              <input
+                className="mt-1 w-full px-3 py-2 rounded-md border"
+                value={login.username}
+                onChange={(e) => setLogin({ ...login, username: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-xs opacity-70">Password</label>
+              <input
+                type="password"
+                className="mt-1 w-full px-3 py-2 rounded-md border"
+                value={login.password}
+                onChange={(e) => setLogin({ ...login, password: e.target.value })}
+                required
+              />
+            </div>
+            <button
+              disabled={authBusy}
+              className="w-full py-2 rounded-md text-white font-medium"
+              style={{ background: GOLD }}
+            >
+              {authBusy ? "Signing in…" : "Login"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="min-h-screen h-screen grid grid-rows-[auto,1fr]"
+      style={{ background: PAPER, color: TEXT }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-3 sm:px-4 py-2 border-b"
+        style={{ background: WHITE, borderColor: `${GOLD}66` }}
+      >
+        <div className="flex items-center gap-2">
+          <button
+            className="p-2 rounded-md border sm:hidden"
+            style={{ borderColor: `${GOLD}66` }}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
+          <div className="text-lg font-semibold">Kaapav Chats</div>
+          <span
+            className={`ml-2 text-xs px-2 py-0.5 rounded-full text-white ${
+              connected ? "bg-emerald-600" : "bg-red-600"
+            }`}
+          >
+            {connected ? "Online" : "Offline"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label
+            className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
+            style={{ borderColor: `${GOLD}55`, background: WHITE }}
+          >
+            <Settings size={14} /> Auto‑hide actions
+            <input
+              type="checkbox"
+              className="accent-current"
+              checked={autoHideActions}
+              onChange={(e) => setAutoHideActions(e.target.checked)}
+            />
+          </label>
+          <button
+            onClick={doLogout}
+            title="Logout"
+            className="px-3 py-1 rounded-md text-white"
+            style={{ background: GOLD }}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
 
-      {/* CSAT MODAL */}
-      <Sheet open={showCSAT} onOpenChange={setShowCSAT}>
-        <SheetContent side="bottom" className="max-w-2xl mx-auto rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>CSAT Survey</SheetTitle>
-          </SheetHeader>
-          <div className="py-3 space-y-3">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm">Score</Label>
-              <select className="px-2 py-1 rounded border dark:border-gray-800 bg-transparent" value={csat} onChange={(e)=>setCsat(e.target.value)}>
-                {[1,2,3,4,5].map(n=> <option key={n} value={n}>{n}</option>)}
-              </select>
+      {/* Body */}
+      <div className="grid grid-cols-12 gap-0 sm:gap-3 p-0 sm:p-3 overflow-hidden min-h-0 h-full">
+        {/* Left: Sessions (collapsible) */}
+        <div
+          id="sessionPane"
+          className={`h-full min-h-0 sm:rounded-xl overflow-hidden transition-all duration-200 ${
+            menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
+          }`}
+          style={{ background: WHITE, border: `1px solid ${GOLD}33` }}
+        >
+          <div
+            className="p-3 flex gap-2 items-center sticky top-0 z-10 border-b"
+            style={{ background: WHITE, borderColor: `${GOLD}33` }}
+          >
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-2 top-2.5 opacity-50" />
+              <input
+                className="w-full pl-7 pr-2 py-2 rounded-md border"
+                style={{ background: PAPER, borderColor: `${GOLD}55` }}
+                placeholder="Search or start new chat"
+                value={sessionFilter}
+                onChange={(e) => setSessionFilter(e.target.value)}
+              />
             </div>
-            <Textarea rows={3} placeholder="Any notes…" value={csatNote} onChange={(e)=>setCsatNote(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={()=>setShowCSAT(false)}>Cancel</Button>
-              <Button className="bg-[#C4952F] text-white" onClick={submitCSAT}>Submit</Button>
-            </div>
+            <button
+              className="p-2 rounded-md sm:hidden text-white"
+              onClick={() => setMenuOpen(false)}
+              style={{ background: GOLD }}
+            >
+              Go
+            </button>
           </div>
-        </SheetContent>
-      </Sheet>
+          <div className="overflow-auto h-full divide-y" style={{ borderColor: `${GOLD}22` }}>
+            {filteredSessions.map((s) => (
+              <div
+                key={s.userId}
+                className={`px-3 py-3 cursor-pointer hover:bg-[#00000005]`}
+                onClick={() => {
+                  setSelected(s.userId);
+                  socketRef.current?.emit("fetch_session_messages", s.userId);
+                }}
+                style={{ background: selected === s.userId ? `#FFF8EB` : WHITE }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#FFF3DF] grid place-items-center">
+                    <UserCircle2 size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">{s.name || s.userId}</div>
+                    <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
+                  </div>
+                  {s.unread > 0 && (
+                    <span
+                      className="text-xs text-white px-2 py-0.5 rounded-full"
+                      style={{ background: GOLD }}
+                    >
+                      {s.unread}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {filteredSessions.length === 0 && (
+              <div className="p-6 text-sm opacity-60">No sessions</div>
+            )}
+          </div>
+        </div>
+
+        {/* Middle: Chat */}
+        <div
+          id="chatPane"
+          className={`$${menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"} flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
+          style={{ background: PAPER, border: `1px solid ${GOLD}33` }}
+        >
+          {/* Chat Header */}
+          <div
+            className="px-3 py-2 flex items-center justify-between border-b"
+            style={{ background: WHITE, borderColor: `${GOLD}33` }}
+          >
+            <div className="flex items-center gap-2">
+              <button
+                className="p-2 rounded-md border hidden sm:inline-flex"
+                style={{ borderColor: `${GOLD}66` }}
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                {menuOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+              </button>
+              <div className="w-8 h-8 rounded-full bg-[#FFF3DF] grid place-items-center">
+                <UserCircle2 size={16} />
+              </div>
+              <div className="font-medium">{selected || "Select a conversation"}</div>
+            </div>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="px-3 py-1 rounded-md text-white"
+              title="Actions"
+              style={{ background: GOLD }}
+            >
+              <Menu size={16} />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-auto p-3 space-y-2">
+            {isTyping && <div className="text-[11px] opacity-60 pl-1">typing…</div>}
+            {messages.map((m) => {
+              const isOut = m.direction === "out" || m.from === "admin";
+              return (
+                <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className="max-w-[78%] p-2 sm:p-3 rounded-2xl shadow"
+                    style={{
+                      background: isOut ? GOLD : WHITE,
+                      color: isOut ? "#ffffff" : TEXT,
+                      border: isOut ? "none" : `1px solid ${GOLD}22`,
+                    }}
+                  >
+                    <div className="text-[10px] opacity-80 mb-1 flex items-center gap-1">
+                      {isOut ? "You" : m.from || "User"} •
+                      {" "}
+                      {new Date(m.ts).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {isOut && <StatusTick status={m.status} />}
+                    </div>
+                    {m.media ? (
+                      <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
+                    ) : (
+                      <div className="text-sm whitespace-pre-wrap">{m.text}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Composer */}
+          <div
+            className="p-2 sm:p-3 flex items-center gap-2 border-t"
+            style={{ background: WHITE, borderColor: `${GOLD}33` }}
+          >
+            <label
+              className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2"
+              style={{ borderColor: `${GOLD}55`, background: PAPER }}
+            >
+              <Upload size={16} /> Attach
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => uploadMedia(e.target.files?.[0])}
+              />
+            </label>
+            <textarea
+              rows={1}
+              className="flex-1 resize-none px-3 py-2 rounded-lg border"
+              style={{ background: PAPER, borderColor: `${GOLD}55` }}
+              placeholder={selected ? "Type a message" : "Select a chat first"}
+              disabled={!selected}
+              value={composer}
+              onChange={(e) => setComposer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!selected}
+              className="p-3 rounded-full text-white"
+              style={{ background: selected ? GOLD : "#CFCFCF" }}
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Right: Blank column (kept for 3‑pane balance) */}
+        <div
+          className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl"
+          style={{ background: WHITE, border: `1px solid ${GOLD}11` }}
+        ></div>
+      </div>
+
+      {/* Floating Actions Button (mobile) */}
+      <button
+        className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
+        onClick={() => setDrawerOpen(true)}
+        style={{ background: GOLD }}
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Actions Drawer */}
+      <div
+        className={`fixed inset-0 z-40 transition ${
+          drawerOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <div
+          className={`absolute inset-0 transition-opacity ${
+            drawerOpen ? "opacity-100" : "opacity-0"
+          }`}
+          style={{ background: "#00000066" }}
+          onClick={closeDrawer}
+        />
+        <div
+          className={`absolute right-0 top-0 h-full w-full sm:w-[420px] shadow-xl transform transition-transform ${
+            drawerOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+          style={{ background: WHITE }}
+        >
+          <div
+            className="flex items-center justify-between px-4 py-3 border-b"
+            style={{ borderColor: `${GOLD}33`, background: PAPER }}
+          >
+            <div className="font-semibold" style={{ color: TEXT }}>
+              Actions
+            </div>
+            <button onClick={closeDrawer} className="p-2 rounded" style={{ background: "#0000000d" }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Action List */}
+            <div className="grid grid-cols-4 gap-2 text-sm">
+              <button
+                onClick={() => openAction("pay")}
+                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                  activeAction === "pay" ? "shadow" : ""
+                }`}
+                style={{ borderColor: `${GOLD}55`, background: WHITE }}
+              >
+                <CreditCard size={18} /> Pay
+              </button>
+              <button
+                onClick={() => openAction("catalogue")}
+                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                  activeAction === "catalogue" ? "shadow" : ""
+                }`}
+                style={{ borderColor: `${GOLD}55`, background: WHITE }}
+              >
+                <Package size={18} /> Catalogue
+              </button>
+              <button
+                onClick={() => openAction("ship")}
+                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                  activeAction === "ship" ? "shadow" : ""
+                }`}
+                style={{ borderColor: `${GOLD}55`, background: WHITE }}
+              >
+                <Truck size={18} /> Ship
+              </button>
+              <button
+                onClick={() => openAction("broadcast")}
+                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
+                  activeAction === "broadcast" ? "shadow" : ""
+                }`}
+                style={{ borderColor: `${GOLD}55`, background: WHITE }}
+              >
+                <Megaphone size={18} /> Broadcast
+              </button>
+            </div>
+
+            {/* Pay Link */}
+            {activeAction === "pay" && (
+              <div className="space-y-3">
+                <div className="text-xs opacity-70">
+                  Send Razorpay payment link {selected ? `to ${selected}` : "(enter numbers below if no chat selected)"}.
+                </div>
+                {!selected && (
+                  <input
+                    className="w-full px-3 py-2 rounded-md border"
+                    style={{ borderColor: `${GOLD}55` }}
+                    placeholder="Numbers (comma separated, intl format)"
+                    value={catalogRecipients}
+                    onChange={(e) => setCatalogRecipients(e.target.value)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <input
+                    className="w-32 px-3 py-2 rounded-md border"
+                    style={{ borderColor: `${GOLD}55` }}
+                    placeholder="Amount"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                  <input
+                    className="flex-1 px-3 py-2 rounded-md border"
+                    style={{ borderColor: `${GOLD}55` }}
+                    placeholder="Note (optional)"
+                    value={payNote}
+                    onChange={(e) => setPayNote(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={submitPayment}
+                  className="w-full py-2 rounded-md text-white font-medium"
+                  style={{ background: GOLD }}
+                >
+                  Send Link
+                </button>
+              </div>
+            )}
+
+            {/* Catalogue */}
+            {activeAction === "catalogue" && (
+              <div className="space-y-3">
+                <div className="text-xs opacity-70">
+                  Search products and send as WhatsApp product card(s).
+                </div>
+                {!selected && (
+                  <input
+                    className="w-full px-3 py-2 rounded-md border"
+                    style={{ borderColor: `${GOLD}55` }}
+                    placeholder="Numbers (comma separated, intl format)"
+                    value={catalogRecipients}
+                    onChange={(e) => setCatalogRecipients(e.target.value)}
+                  />
+                )}
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 px-3 py-2 rounded-md border"
+                    style={{ borderColor: `${GOLD}55` }}
+                    placeholder="Search product or SKU"
+                    value={catalogQuery}
+                    onChange={(e) => setCatalogQuery(e.target.value)}
+                  />
+                  <button
+                    onClick={searchCatalog}
+                    className="px-3 rounded-md text-white"
+                    style={{ background: GOLD }}
+                  >
+                    Search
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-auto space-y-2">
+                  {products.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 p-2 rounded-lg border"
+                      style={{ borderColor: `${GOLD}44`, background: WHITE }}
+                    >
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.title}
+                          className="w-10 h-10 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded" style={{ background: PAPER }} />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{p.title}</div>
+                        <div className="text-[11px] opacity-70">
+                          {p.sku} • ₹{Number(p.price || 0).toFixed(0)} {p.stock > 0 ? `• ${p.stock} in stock` : "• OOS"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => sendCatalogue(p.id)}
+                        className="px-3 py-1 rounded-md text-white"
+                        style={{ background: GOLD }}
+                      >
+                        Send
+                      </button>
+                    </div>
+                  ))}
+                  {products.length === 0 && (
+                    <div className="text-xs opacity-60">No products. Search to load catalogue.</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Ship */}
+            {activeAction === "ship" && (
+              <div className="space-y-3">
+                <div className="text-xs opacity-70">
+                  Push Shiprocket tracking update to the chat or to a number.
+                </div>
+                <input
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: `${GOLD}55` }}
+                  placeholder="AWB"
+                  value={awb}
+                  onChange={(e) => setAwb(e.target.value)}
+                />
+                <button
+                  onClick={trackShipment}
+                  className="w-full py-2 rounded-md text-white font-medium"
+                  style={{ background: GOLD }}
+                >
+                  Send Tracking
+                </button>
+              </div>
+            )}
+
+            {/* Broadcast */}
+            {activeAction === "broadcast" && (
+              <div className="space-y-3">
+                <div className="text-xs opacity-70">
+                  Send a one-shot broadcast to a tag/segment (e.g., ALL / COD / HOT).
+                </div>
+                <input
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: `${GOLD}55` }}
+                  placeholder="Segment tag (e.g., ALL)"
+                  value={broadcastTag}
+                  onChange={(e) => setBroadcastTag(e.target.value)}
+                />
+                <textarea
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-md border"
+                  style={{ borderColor: `${GOLD}55`, background: PAPER }}
+                  placeholder="Message…"
+                  value={broadcastText}
+                  onChange={(e) => setBroadcastText(e.target.value)}
+                />
+                <button
+                  onClick={doBroadcast}
+                  className="w-full py-2 rounded-md text-white font-medium"
+                  style={{ background: GOLD }}
+                >
+                  Queue Broadcast
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow text-white"
+          style={{ background: TEXT }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-function StatusTick({ status }){
-  if (status === 'read') return <CheckCheck className="w-4 h-4 text-sky-500"/>;
-  if (status === 'delivered') return <CheckCheck className="w-4 h-4 opacity-70"/>;
-  return <Check className="w-4 h-4 opacity-70"/>;
+function StatusTick({ status }) {
+  if (status === "read") return <CheckCheck size={14} className="opacity-80" />;
+  if (status === "delivered") return <Check size={14} className="opacity-80" />;
+  if (status === "sent") return <Check size={14} className="opacity-50" />;
+  return null;
 }
