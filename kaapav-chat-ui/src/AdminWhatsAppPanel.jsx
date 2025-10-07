@@ -1,3 +1,4 @@
+// File: src/AdminWhatsAppPanel.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import {
@@ -20,46 +21,32 @@ import {
   Settings,
 } from "lucide-react";
 
-/**
- * Kaapav WhatsApp Admin — Gold/White + Auto‑Hide **Actions**
- *
- * Additions vs previous build:
- *  - Gold/White theme (reduced charcoal)
- *  - WhatsApp-like 3‑pane responsive layout
- *  - **Auto‑hide Actions**: the actions drawer (Catalogue, Razorpay, Shiprocket, Broadcast) auto-closes after any action.
- *  - Sessions list no longer auto-collapses; you control it with the chevron.
- *  - Login (username/password → JWT)
- */
- 
-export default function WhatsAppAdminGoldWhite() {
-  // ======= THEME (KAAPAV) =======
+export default function AdminWhatsAppPanel() {
+  // ======= THEME =======
   const GOLD = "#C4952F";
   const WHITE = "#FFFFFF";
   const PAPER = "#FAFAFA";
-  const TEXT = "#1F1C17"; // subtle charcoal for text only
+  const TEXT = "#1F1C17";
 
-  // ======= ENV =======
+  // ======= ENV (same-origin) =======
   const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "/socket.io";
-  const apiBase   = import.meta.env?.VITE_API_URL   ?? "/api";
-  const DEFAULT_WA = "91 91483 30016"; // +91 91483 30016 in international format
+  const apiBase = import.meta.env?.VITE_API_URL ?? "/api";
 
   // ======= AUTH =======
   const [token, setToken] = useState(() => (localStorage.getItem("ADMIN_TOKEN") || "").trim());
   const [loginView, setLoginView] = useState(() => !token);
-  const [login, setLogin] = useState({ username: "", password: "" });
   const [authBusy, setAuthBusy] = useState(false);
+  const [login, setLogin] = useState({ username: "", password: "" });
+
+  // Signup
   const [showSignup, setShowSignup] = useState(false);
   const [signup, setSignup] = useState({ username: "", password: "", confirm: "", role: "admin" });
- 
 
   // ======= SETTINGS =======
   const [autoHideActions, setAutoHideActions] = useState(
     () => (localStorage.getItem("autoHideActions") ?? "true") === "true"
   );
-  useEffect(
-    () => localStorage.setItem("autoHideActions", String(autoHideActions)),
-    [autoHideActions]
-  );
+  useEffect(() => localStorage.setItem("autoHideActions", String(autoHideActions)), [autoHideActions]);
 
   // ======= DATA =======
   const [sessions, setSessions] = useState([]);
@@ -69,8 +56,6 @@ export default function WhatsAppAdminGoldWhite() {
   const [composer, setComposer] = useState("");
   const [connected, setConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-
-  // Menu visibility (desktop + mobile)
   const [menuOpen, setMenuOpen] = useState(true);
 
   const socketRef = useRef(null);
@@ -129,12 +114,12 @@ export default function WhatsAppAdminGoldWhite() {
   useEffect(() => {
     if (!token) return;
     const sock = io(socketUrl, {
-    auth: { token },
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000
-  });
+      auth: { token },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
     socketRef.current = sock;
 
     sock.on("connect", () => setConnected(true));
@@ -166,7 +151,7 @@ export default function WhatsAppAdminGoldWhite() {
     return () => sock.disconnect();
   }, [token, socketUrl]);
 
-  // ======= LOGIN (Username/Password -> JWT) =======
+  // ======= AUTH ACTIONS =======
   const doLogin = async (e) => {
     e?.preventDefault?.();
     setAuthBusy(true);
@@ -192,50 +177,55 @@ export default function WhatsAppAdminGoldWhite() {
     }
   };
 
-  // ======= SIGNUP (Create user -> returns token or fall back to login) =======
-const doSignup = async (e) => {
-  e?.preventDefault?.();
-  if (!signup.username.trim() || !signup.password.trim()) return;
-  if (signup.password !== signup.confirm) return;
-  setAuthBusy(true);
-  try {
-    const res = await fetch(`${apiBase}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: signup.username.trim(),
-        password: signup.password,
-        role: signup.role || "admin",
-      }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const j = await res.json().catch(() => ({}));
-    const t = (j?.token || j?.accessToken || "").trim();
-    if (t) {
-      localStorage.setItem("ADMIN_TOKEN", t);
-      setToken(t);
-      setLoginView(false);
-      showToast("Account created & logged in");
-    } else {
-      setLogin({ username: signup.username, password: signup.password });
-      setShowSignup(false);
-      showToast("Account created. Please login");
+  const doSignup = async (e) => {
+    e?.preventDefault?.();
+    if (!signup.username.trim() || !signup.password.trim()) {
+      showToast("Username and password required");
+      return;
     }
-  } catch (err) {
-    console.error(err);
-    showToast("Signup failed");
-  } finally {
-    setAuthBusy(false);
-  }
-};
+    if (signup.password !== signup.confirm) {
+      showToast("Passwords do not match");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const res = await fetch(`${apiBase}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: signup.username.trim(),
+          password: signup.password,
+          role: signup.role || "admin",
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = await res.json().catch(() => ({}));
+      const t = (j?.token || j?.accessToken || "").trim();
+      if (t) {
+        localStorage.setItem("ADMIN_TOKEN", t);
+        setToken(t);
+        setLoginView(false);
+        showToast("Account created & logged in");
+      } else {
+        setLogin({ username: signup.username, password: signup.password });
+        setShowSignup(false);
+        showToast("Account created. Please login");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Signup failed");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
 
   const doLogout = () => {
     localStorage.removeItem("ADMIN_TOKEN");
     setToken("");
     setLoginView(true);
   };
- 
-  // ======= CHAT =======
+
+  // ======= CHAT ACTIONS =======
   const sendMessage = () => {
     const text = (composer || "").trim();
     if (!text || !selected) return;
@@ -268,10 +258,12 @@ const doSignup = async (e) => {
       const msg = await res.json();
       setMessages((p) => [...p, normalizeMsg(msg, "out")]);
       showToast("Media sent");
-    } catch {}
+    } catch {
+      showToast("Upload failed");
+    }
   };
 
-  // ======= ACTIONS (Pay, Catalogue, Ship, Broadcast) =======
+  // ======= ACTIONS (drawer) =======
   const openAction = (a) => {
     setActiveAction(a);
     setDrawerOpen(true);
@@ -284,7 +276,7 @@ const doSignup = async (e) => {
   const submitPayment = async () => {
     const to =
       selected ||
-      (catalogRecipients || DEFAULT_WA)
+      (catalogRecipients || "")
         .split(",")
         .map((n) => n.trim())
         .filter(Boolean);
@@ -292,19 +284,23 @@ const doSignup = async (e) => {
       showToast("Pick a chat or add a number");
       return;
     }
-    if (!amount) return;
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n <= 0) {
+      showToast("Enter valid amount");
+      return;
+    }
     try {
       await fetch(`${apiBase}/razorpay/link`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify({ to, amount: Number(amount), note: payNote }),
+        body: JSON.stringify({ to, amount: n, note: payNote || "" }),
       });
       showToast("Payment link sent");
       setAmount("");
       setPayNote("");
       setCatalogRecipients("");
       if (autoHideActions) closeDrawer();
-    } catch (e) {
+    } catch {
       showToast("Failed to send link");
     }
   };
@@ -353,7 +349,7 @@ const doSignup = async (e) => {
       await fetch(`${apiBase}/shiprocket/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeader },
-        body: JSON.stringify({ to: selected || undefined, awb }),
+        body: JSON.stringify({ to: selected, awb: awb.trim() }),
       });
       showToast("Tracking pushed");
       setAwb("");
@@ -371,7 +367,6 @@ const doSignup = async (e) => {
         headers: { "Content-Type": "application/json", ...authHeader },
         body: JSON.stringify({ tag: broadcastTag, text: broadcastText }),
       });
-    
       showToast("Broadcast queued");
       setBroadcastText("");
       if (autoHideActions) closeDrawer();
@@ -380,21 +375,8 @@ const doSignup = async (e) => {
     }
   };
 
-  // ======= DEV SANITY TESTS (non-blocking) =======
-  useEffect(() => {
-    const isProd = (import.meta?.env?.MODE || "production") === "production";
-    if (isProd) return;
-    try {
-      console.assert(typeof socketUrl === "string" && socketUrl.length > 0, "socketUrl must be a string");
-      console.assert(typeof apiBase === "string" && apiBase.length > 0, "apiBase must be a string");
-      console.assert(typeof menuOpen === "boolean", "menuOpen should be boolean");
-      console.assert(typeof setMenuOpen === "function", "setMenuOpen should be function");
-      console.assert([null, "pay", "catalogue", "ship", "broadcast"].includes(activeAction), "activeAction must be valid or null");
-      console.assert(typeof autoHideActions === "boolean", "autoHideActions should be boolean");
-    } catch {}
-  }, [activeAction, autoHideActions, menuOpen]);
-
   // ======= RENDER =======
+  // 1) Login/Signup screen ONLY
   if (loginView) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: PAPER }}>
@@ -403,108 +385,182 @@ const doSignup = async (e) => {
           style={{ background: WHITE, border: `1px solid ${GOLD}33` }}
         >
           <div className="flex items-center gap-2 mb-4">
-            <div
-              className="w-9 h-9 rounded-full grid place-items-center text-white"
-              style={{ background: GOLD }}
-            >
+            <div className="w-9 h-9 rounded-full grid place-items-center text-white" style={{ background: GOLD }}>
               <Lock size={18} />
             </div>
             <div className="text-lg font-semibold" style={{ color: TEXT }}>
               Kaapav Admin Login
             </div>
           </div>
-          {/* Tabs */}
-<div className="flex text-sm mb-4 border rounded-lg overflow-hidden" style={{ borderColor: `${GOLD}33` }}>
-  <button
-    type="button"
-    className={`flex-1 py-2 ${!showSignup ? 'bg-[#FFF8EB] font-medium':''}`}
-    onClick={() => setShowSignup(false)}
-  >
-    Login
-  </button>
-  <button
-    type="button"
-    className={`flex-1 py-2 ${ showSignup ? 'bg-[#FFF8EB] font-medium':''}`}
-    onClick={() => setShowSignup(true)}
-  >
-    Create User
-  </button>
-</div>
 
- {!showSignup ? (
-  <form onSubmit={doLogin} className="space-y-3">
-    <div>
-      <label className="text-xs opacity-70">Username</label>
-      <input
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={login.username}
-        onChange={(e)=>setLogin({...login, username:e.target.value})}
-        required
-      />
-    </div>
-    <div>
-      <label className="text-xs opacity-70">Password</label>
-      <input
-        type="password"
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={login.password}
-        onChange={(e)=>setLogin({...login, password:e.target.value})}
-        required
-      />
-    </div>
-    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
-      {authBusy ? 'Signing in…' : 'Login'}
-    </button>
-  </form>
-) : (
-  <form onSubmit={doSignup} className="space-y-3">
-    <div>
-      <label className="text-xs opacity-70">Username</label>
-      <input
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={signup.username}
-        onChange={(e)=>setSignup({...signup, username:e.target.value})}
-        required
-      />
-    </div>
-    <div>
-      <label className="text-xs opacity-70">Password</label>
-      <input
-        type="password"
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={signup.password}
-        onChange={(e)=>setSignup({...signup, password:e.target.value})}
-        required
-      />
-    </div>
-    <div>
-      <label className="text-xs opacity-70">Confirm Password</label>
-      <input
-        type="password"
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={signup.confirm}
-        onChange={(e)=>setSignup({...signup, confirm:e.target.value})}
-        required
-      />
-    </div>
-    <div className="flex items-center gap-3 text-xs">
-      <label className="flex items-center gap-2">
-        <input type="radio" name="role" checked={signup.role==='admin'} onChange={()=>setSignup({...signup, role:'admin'})}/>
-        Admin
-      </label>
-      <label className="flex items-center gap-2">
-        <input type="radio" name="role" checked={signup.role==='agent'} onChange={()=>setSignup({...signup, role:'agent'})}/>
-        Agent
-      </label>
-    </div>
-    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
-      {authBusy ? 'Creating…' : 'Create User'}
-    </button>
-  </form>
-)}
+          {/* Tabs */}
+          <div className="flex text-sm mb-4 border rounded-lg overflow-hidden" style={{ borderColor: `${GOLD}33` }}>
+            <button
+              type="button"
+              className={`flex-1 py-2 ${!showSignup ? "bg-[#FFF8EB] font-medium" : ""}`}
+              onClick={() => setShowSignup(false)}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              className={`flex-1 py-2 ${showSignup ? "bg-[#FFF8EB] font-medium" : ""}`}
+              onClick={() => setShowSignup(true)}
+            >
+              Create User
+            </button>
+          </div>
+
+          {/* Forms */}
+          {!showSignup ? (
+            <form onSubmit={doLogin} className="space-y-3">
+              <div>
+                <label className="text-xs opacity-70">Username</label>
+                <input
+                  className="mt-1 w-full px-3 py-2 rounded-md border"
+                  value={login.username}
+                  onChange={(e) => setLogin({ ...login, username: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs opacity-70">Password</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full px-3 py-2 rounded-md border"
+                  value={login.password}
+                  onChange={(e) => setLogin({ ...login, password: e.target.value })}
+                  required
+                />
+              </div>
+              <button
+                disabled={authBusy}
+                className="w-full py-2 rounded-md text-white font-medium"
+                style={{ background: GOLD }}
+              >
+                {authBusy ? "Signing in…" : "Login"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={doSignup} className="space-y-3">
+              <div>
+                <label className="text-xs opacity-70">Username</label>
+                <input
+                  className="mt-1 w-full px-3 py-2 rounded-md border"
+                  value={signup.username}
+                  onChange={(e) => setSignup({ ...signup, username: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs opacity-70">Password</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full px-3 py-2 rounded-md border"
+                  value={signup.password}
+                  onChange={(e) => setSignup({ ...signup, password: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs opacity-70">Confirm Password</label>
+                <input
+                  type="password"
+                  className="mt-1 w-full px-3 py-2 rounded-md border"
+                  value={signup.confirm}
+                  onChange={(e) => setSignup({ ...signup, confirm: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="role"
+                    checked={signup.role === "admin"}
+                    onChange={() => setSignup({ ...signup, role: "admin" })}
+                  />
+                  Admin
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="role"
+                    checked={signup.role === "agent"}
+                    onChange={() => setSignup({ ...signup, role: "agent" })}
+                  />
+                  Agent
+                </label>
+              </div>
+              <button
+                disabled={authBusy}
+                className="w-full py-2 rounded-md text-white font-medium"
+                style={{ background: GOLD }}
+              >
+                {authBusy ? "Creating…" : "Create User"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 2) MAIN APP (post-login only)
+  return (
+    <div
+      className="min-h-screen h-screen grid grid-rows-[auto,1fr]"
+      style={{ background: PAPER, color: TEXT }}
+    >
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-3 sm:px-4 py-2 border-b"
+        style={{ background: WHITE, borderColor: `${GOLD}66` }}
+      >
+        <div className="flex items-center gap-2">
+          <button
+            className="p-2 rounded-md border sm:hidden"
+            style={{ borderColor: `${GOLD}66` }}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+          </button>
+          <div className="text-lg font-semibold">Kaapav Chats</div>
+          <span
+            className={`ml-2 text-xs px-2 py-0.5 rounded-full text-white ${
+              connected ? "bg-emerald-600" : "bg-red-600"
+            }`}
+          >
+            {connected ? "Online" : "Offline"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <label
+            className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
+            style={{ borderColor: `${GOLD}55`, background: WHITE }}
+          >
+            <Settings size={14} /> Auto-hide actions
+            <input
+              type="checkbox"
+              className="accent-current"
+              checked={autoHideActions}
+              onChange={(e) => setAutoHideActions(e.target.checked)}
+            />
+          </label>
+          <button
+            onClick={doLogout}
+            title="Logout"
+            className="px-3 py-1 rounded-md text-white"
+            style={{ background: GOLD }}
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+
       {/* Body */}
       <div className="grid grid-cols-12 gap-0 sm:gap-3 p-0 sm:p-3 overflow-hidden min-h-0 h-full">
-        {/* Left: Sessions (collapsible) */}
+        {/* Left: Sessions */}
         <div
           id="sessionPane"
           className={`h-full min-h-0 sm:rounded-xl overflow-hidden transition-all duration-200 ${
@@ -538,7 +594,7 @@ const doSignup = async (e) => {
             {filteredSessions.map((s) => (
               <div
                 key={s.userId}
-                className={`px-3 py-3 cursor-pointer hover:bg-[#00000005]`}
+                className="px-3 py-3 cursor-pointer hover:bg-[#00000005]"
                 onClick={() => {
                   setSelected(s.userId);
                   socketRef.current?.emit("fetch_session_messages", s.userId);
@@ -554,33 +610,27 @@ const doSignup = async (e) => {
                     <div className="text-xs opacity-70 truncate">{s.lastMessage}</div>
                   </div>
                   {s.unread > 0 && (
-                    <span
-                      className="text-xs text-white px-2 py-0.5 rounded-full"
-                      style={{ background: GOLD }}
-                    >
+                    <span className="text-xs text-white px-2 py-0.5 rounded-full" style={{ background: GOLD }}>
                       {s.unread}
                     </span>
                   )}
                 </div>
               </div>
             ))}
-            {filteredSessions.length === 0 && (
-              <div className="p-6 text-sm opacity-60">No sessions</div>
-            )}
+            {filteredSessions.length === 0 && <div className="p-6 text-sm opacity-60">No sessions</div>}
           </div>
         </div>
 
         {/* Middle: Chat */}
         <div
           id="chatPane"
-          className={`${menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"} flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
+          className={`${
+            menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"
+          } flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
           style={{ background: PAPER, border: `1px solid ${GOLD}33` }}
         >
           {/* Chat Header */}
-          <div
-            className="px-3 py-2 flex items-center justify-between border-b"
-            style={{ background: WHITE, borderColor: `${GOLD}33` }}
-          >
+          <div className="px-3 py-2 flex items-center justify-between border-b" style={{ background: WHITE, borderColor: `${GOLD}33` }}>
             <div className="flex items-center gap-2">
               <button
                 className="p-2 rounded-md border hidden sm:inline-flex"
@@ -620,12 +670,8 @@ const doSignup = async (e) => {
                     }}
                   >
                     <div className="text-[10px] opacity-80 mb-1 flex items-center gap-1">
-                      {isOut ? "You" : m.from || "User"} •
-                      {" "}
-                      {new Date(m.ts).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {isOut ? "You" : m.from || "User"} •{" "}
+                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       {isOut && <StatusTick status={m.status} />}
                     </div>
                     {m.media ? (
@@ -640,20 +686,10 @@ const doSignup = async (e) => {
           </div>
 
           {/* Composer */}
-          <div
-            className="p-2 sm:p-3 flex items-center gap-2 border-t"
-            style={{ background: WHITE, borderColor: `${GOLD}33` }}
-          >
-            <label
-              className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2"
-              style={{ borderColor: `${GOLD}55`, background: PAPER }}
-            >
+          <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: WHITE, borderColor: `${GOLD}33` }}>
+            <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2" style={{ borderColor: `${GOLD}55`, background: PAPER }}>
               <Upload size={16} /> Attach
-              <input
-                type="file"
-                className="hidden"
-                onChange={(e) => uploadMedia(e.target.files?.[0])}
-              />
+              <input type="file" className="hidden" onChange={(e) => uploadMedia(e.target.files?.[0])} />
             </label>
             <textarea
               rows={1}
@@ -681,14 +717,11 @@ const doSignup = async (e) => {
           </div>
         </div>
 
-        {/* Right: Blank column (kept for 3‑pane balance) */}
-        <div
-          className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl"
-          style={{ background: WHITE, border: `1px solid ${GOLD}11` }}
-        ></div>
+        {/* Right spacer (3rd pane) */}
+        <div className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl" style={{ background: WHITE, border: `1px solid ${GOLD}11` }} />
       </div>
 
-      {/* Floating Actions Button (mobile) */}
+      {/* Mobile FAB */}
       <button
         className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
         onClick={() => setDrawerOpen(true)}
@@ -698,15 +731,9 @@ const doSignup = async (e) => {
       </button>
 
       {/* Actions Drawer */}
-      <div
-        className={`fixed inset-0 z-40 transition ${
-          drawerOpen ? "pointer-events-auto" : "pointer-events-none"
-        }`}
-      >
+      <div className={`fixed inset-0 z-40 transition ${drawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
         <div
-          className={`absolute inset-0 transition-opacity ${
-            drawerOpen ? "opacity-100" : "opacity-0"
-          }`}
+          className={`absolute inset-0 transition-opacity ${drawerOpen ? "opacity-100" : "opacity-0"}`}
           style={{ background: "#00000066" }}
           onClick={closeDrawer}
         />
@@ -716,65 +743,34 @@ const doSignup = async (e) => {
           }`}
           style={{ background: WHITE }}
         >
-          <div
-            className="flex items-center justify-between px-4 py-3 border-b"
-            style={{ borderColor: `${GOLD}33`, background: PAPER }}
-          >
-            <div className="font-semibold" style={{ color: TEXT }}>
-              Actions
-            </div>
+          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: `${GOLD}33`, background: PAPER }}>
+            <div className="font-semibold" style={{ color: TEXT }}>Actions</div>
             <button onClick={closeDrawer} className="p-2 rounded" style={{ background: "#0000000d" }}>
               <X size={18} />
             </button>
           </div>
 
           <div className="p-4 space-y-4">
-            {/* Action List */}
+            {/* Tiles */}
             <div className="grid grid-cols-4 gap-2 text-sm">
-              <button
-                onClick={() => openAction("pay")}
-                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
-                  activeAction === "pay" ? "shadow" : ""
-                }`}
-                style={{ borderColor: `${GOLD}55`, background: WHITE }}
-              >
+              <button onClick={() => openAction("pay")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "pay" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
                 <CreditCard size={18} /> Pay
               </button>
-              <button
-                onClick={() => openAction("catalogue")}
-                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
-                  activeAction === "catalogue" ? "shadow" : ""
-                }`}
-                style={{ borderColor: `${GOLD}55`, background: WHITE }}
-              >
+              <button onClick={() => openAction("catalogue")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "catalogue" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
                 <Package size={18} /> Catalogue
               </button>
-              <button
-                onClick={() => openAction("ship")}
-                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
-                  activeAction === "ship" ? "shadow" : ""
-                }`}
-                style={{ borderColor: `${GOLD}55`, background: WHITE }}
-              >
+              <button onClick={() => openAction("ship")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "ship" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
                 <Truck size={18} /> Ship
               </button>
-              <button
-                onClick={() => openAction("broadcast")}
-                className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${
-                  activeAction === "broadcast" ? "shadow" : ""
-                }`}
-                style={{ borderColor: `${GOLD}55`, background: WHITE }}
-              >
+              <button onClick={() => openAction("broadcast")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "broadcast" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
                 <Megaphone size={18} /> Broadcast
               </button>
             </div>
 
-            {/* Pay Link */}
+            {/* Pay */}
             {activeAction === "pay" && (
               <div className="space-y-3">
-                <div className="text-xs opacity-70">
-                  Send Razorpay payment link {selected ? `to ${selected}` : "(enter numbers below if no chat selected)"}.
-                </div>
+                <div className="text-xs opacity-70">Send Razorpay payment link {selected ? `to ${selected}` : "(enter numbers below if no chat selected)"}.</div>
                 {!selected && (
                   <input
                     className="w-full px-3 py-2 rounded-md border"
@@ -785,26 +781,10 @@ const doSignup = async (e) => {
                   />
                 )}
                 <div className="flex gap-2">
-                  <input
-                    className="w-32 px-3 py-2 rounded-md border"
-                    style={{ borderColor: `${GOLD}55` }}
-                    placeholder="Amount"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                  <input
-                    className="flex-1 px-3 py-2 rounded-md border"
-                    style={{ borderColor: `${GOLD}55` }}
-                    placeholder="Note (optional)"
-                    value={payNote}
-                    onChange={(e) => setPayNote(e.target.value)}
-                  />
+                  <input className="w-32 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <input className="flex-1 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Note (optional)" value={payNote} onChange={(e) => setPayNote(e.target.value)} />
                 </div>
-                <button
-                  onClick={submitPayment}
-                  className="w-full py-2 rounded-md text-white font-medium"
-                  style={{ background: GOLD }}
-                >
+                <button onClick={submitPayment} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Send Link
                 </button>
               </div>
@@ -813,9 +793,7 @@ const doSignup = async (e) => {
             {/* Catalogue */}
             {activeAction === "catalogue" && (
               <div className="space-y-3">
-                <div className="text-xs opacity-70">
-                  Search products and send as WhatsApp product card(s).
-                </div>
+                <div className="text-xs opacity-70">Search products and send as WhatsApp product card(s).</div>
                 {!selected && (
                   <input
                     className="w-full px-3 py-2 rounded-md border"
@@ -826,34 +804,16 @@ const doSignup = async (e) => {
                   />
                 )}
                 <div className="flex gap-2">
-                  <input
-                    className="flex-1 px-3 py-2 rounded-md border"
-                    style={{ borderColor: `${GOLD}55` }}
-                    placeholder="Search product or SKU"
-                    value={catalogQuery}
-                    onChange={(e) => setCatalogQuery(e.target.value)}
-                  />
-                  <button
-                    onClick={searchCatalog}
-                    className="px-3 rounded-md text-white"
-                    style={{ background: GOLD }}
-                  >
+                  <input className="flex-1 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Search product or SKU" value={catalogQuery} onChange={(e) => setCatalogQuery(e.target.value)} />
+                  <button onClick={searchCatalog} className="px-3 rounded-md text-white" style={{ background: GOLD }}>
                     Search
                   </button>
                 </div>
                 <div className="max-h-64 overflow-auto space-y-2">
                   {products.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-2 p-2 rounded-lg border"
-                      style={{ borderColor: `${GOLD}44`, background: WHITE }}
-                    >
+                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border" style={{ borderColor: `${GOLD}44`, background: WHITE }}>
                       {p.imageUrl ? (
-                        <img
-                          src={p.imageUrl}
-                          alt={p.title}
-                          className="w-10 h-10 rounded object-cover"
-                        />
+                        <img src={p.imageUrl} alt={p.title} className="w-10 h-10 rounded object-cover" />
                       ) : (
                         <div className="w-10 h-10 rounded" style={{ background: PAPER }} />
                       )}
@@ -863,18 +823,12 @@ const doSignup = async (e) => {
                           {p.sku} • ₹{Number(p.price || 0).toFixed(0)} {p.stock > 0 ? `• ${p.stock} in stock` : "• OOS"}
                         </div>
                       </div>
-                      <button
-                        onClick={() => sendCatalogue(p.id)}
-                        className="px-3 py-1 rounded-md text-white"
-                        style={{ background: GOLD }}
-                      >
+                      <button onClick={() => sendCatalogue(p.id)} className="px-3 py-1 rounded-md text-white" style={{ background: GOLD }}>
                         Send
                       </button>
                     </div>
                   ))}
-                  {products.length === 0 && (
-                    <div className="text-xs opacity-60">No products. Search to load catalogue.</div>
-                  )}
+                  {products.length === 0 && <div className="text-xs opacity-60">No products. Search to load catalogue.</div>}
                 </div>
               </div>
             )}
@@ -882,21 +836,9 @@ const doSignup = async (e) => {
             {/* Ship */}
             {activeAction === "ship" && (
               <div className="space-y-3">
-                <div className="text-xs opacity-70">
-                  Push Shiprocket tracking update to the chat or to a number.
-                </div>
-                <input
-                  className="w-full px-3 py-2 rounded-md border"
-                  style={{ borderColor: `${GOLD}55` }}
-                  placeholder="AWB"
-                  value={awb}
-                  onChange={(e) => setAwb(e.target.value)}
-                />
-                <button
-                  onClick={trackShipment}
-                  className="w-full py-2 rounded-md text-white font-medium"
-                  style={{ background: GOLD }}
-                >
+                <div className="text-xs opacity-70">Push Shiprocket tracking update to the chat or to a number.</div>
+                <input className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="AWB" value={awb} onChange={(e) => setAwb(e.target.value)} />
+                <button onClick={trackShipment} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Send Tracking
                 </button>
               </div>
@@ -905,29 +847,10 @@ const doSignup = async (e) => {
             {/* Broadcast */}
             {activeAction === "broadcast" && (
               <div className="space-y-3">
-                <div className="text-xs opacity-70">
-                  Send a one-shot broadcast to a tag/segment (e.g., ALL / COD / HOT).
-                </div>
-                <input
-                  className="w-full px-3 py-2 rounded-md border"
-                  style={{ borderColor: `${GOLD}55` }}
-                  placeholder="Segment tag (e.g., ALL)"
-                  value={broadcastTag}
-                  onChange={(e) => setBroadcastTag(e.target.value)}
-                />
-                <textarea
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-md border"
-                  style={{ borderColor: `${GOLD}55`, background: PAPER }}
-                  placeholder="Message…"
-                  value={broadcastText}
-                  onChange={(e) => setBroadcastText(e.target.value)}
-                />
-                <button
-                  onClick={doBroadcast}
-                  className="w-full py-2 rounded-md text-white font-medium"
-                  style={{ background: GOLD }}
-                >
+                <div className="text-xs opacity-70">Send a one-shot broadcast to a tag/segment (e.g., ALL / COD / HOT).</div>
+                <input className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Segment tag (e.g., ALL)" value={broadcastTag} onChange={(e) => setBroadcastTag(e.target.value)} />
+                <textarea rows={4} className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55`, background: PAPER }} placeholder="Message…" value={broadcastText} onChange={(e) => setBroadcastText(e.target.value)} />
+                <button onClick={doBroadcast} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Queue Broadcast
                 </button>
               </div>
@@ -938,10 +861,7 @@ const doSignup = async (e) => {
 
       {/* Toast */}
       {toast && (
-        <div
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow text-white"
-          style={{ background: TEXT }}
-        >
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full shadow text-white" style={{ background: TEXT }}>
           {toast}
         </div>
       )}
