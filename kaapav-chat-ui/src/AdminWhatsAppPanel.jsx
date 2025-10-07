@@ -453,17 +453,7 @@ const doSignup = async (e) => {
         onChange={(e)=>setSignup({...signup, username:e.target.value})}
         required
       />
-    </div>
-    <div>
-      <label className="text-xs opacity-70">Password</label>
-      <input
-        type="password"
-        className="mt-1 w-full px-3 py-2 rounded-md border"
-        value={signup.password}
-        onChange={(e)=>setSignup({...signup, password:e.target.value})}
-        required
-      />
-    </div>
+    
     <div>
       <label className="text-xs opacity-70">Confirm Password</label>
       <input
