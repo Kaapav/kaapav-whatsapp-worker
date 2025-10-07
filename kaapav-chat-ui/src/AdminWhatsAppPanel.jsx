@@ -561,13 +561,13 @@ export default function AdminWhatsAppPanel() {
       {/* Body */}
       <div className="grid grid-cols-12 gap-0 sm:gap-3 p-0 sm:p-3 overflow-hidden min-h-0 h-full">
         {/* Left: Sessions */}
-        <div
-          id="sessionPane"
-          className={`h-full min-h-0 sm:rounded-xl overflow-hidden transition-all duration-200 ${
-            menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
-          }`}
-          style={{ background: WHITE, border: `1px solid ${GOLD}33` }}
-        >
+       <div
+  id="sessionPane"
+  className={`kp-leftpane h-full min-h-0 overflow-hidden transition-all duration-200 ${
+    menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
+  }`}
+>
+
           <div
             className="p-3 flex gap-2 items-center sticky top-0 z-10 border-b"
             style={{ background: WHITE, borderColor: `${GOLD}33` }}
@@ -660,53 +660,60 @@ export default function AdminWhatsAppPanel() {
             {messages.map((m) => {
               const isOut = m.direction === "out" || m.from === "admin";
               return (
-                <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className="max-w-[78%] p-2 sm:p-3 rounded-2xl shadow"
-                    style={{
-                      background: isOut ? GOLD : WHITE,
-                      color: isOut ? "#ffffff" : TEXT,
-                      border: isOut ? "none" : `1px solid ${GOLD}22`,
-                    }}
-                  >
-                    <div className="text-[10px] opacity-80 mb-1 flex items-center gap-1">
-                      {isOut ? "You" : m.from || "User"} •{" "}
-                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      {isOut && <StatusTick status={m.status} />}
-                    </div>
-                    {m.media ? (
-                      <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
-                    ) : (
-                      <div className="text-sm whitespace-pre-wrap">{m.text}</div>
-                    )}
-                  </div>
-                </div>
-              );
+               <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+  <div className={`kp-bubble ${isOut ? "kp-out" : "kp-in"}`}>
+    <div className="kp-meta mb-1 flex items-center gap-1">
+      {isOut ? "You" : m.from || "User"} •{" "}
+      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      {isOut && <StatusTick status={m.status} />}
+    </div>
+    {m.media ? (
+      <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
+    ) : (
+      <div className="text-sm whitespace-pre-wrap">{m.text}</div>
+    )}
+  </div>
+</div>
+       );
             })}
           </div>
 
           {/* Composer */}
-          <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: WHITE, borderColor: `${GOLD}33` }}>
-            <label className="px-2 py-2 rounded-lg border cursor-pointer text-xs flex items-center gap-2" style={{ borderColor: `${GOLD}55`, background: PAPER }}>
-              <Upload size={16} /> Attach
-              <input type="file" className="hidden" onChange={(e) => uploadMedia(e.target.files?.[0])} />
-            </label>
-            <textarea
-              rows={1}
-              className="flex-1 resize-none px-3 py-2 rounded-lg border"
-              style={{ background: PAPER, borderColor: `${GOLD}55` }}
-              placeholder={selected ? "Type a message" : "Select a chat first"}
-              disabled={!selected}
-              value={composer}
-              onChange={(e) => setComposer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-            />
-            <button
+          <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: "#FFFFFF", borderColor: "rgba(196,149,47,.20)" }}>
+  <label className="kp-input cursor-pointer text-xs flex items-center gap-2">
+    <Upload size={16} /> Attach
+    <input
+      type="file"
+      className="hidden"
+      onChange={(e) => uploadMedia(e.target.files?.[0])}
+    />
+  </label>
+
+  <textarea
+    rows={1}
+    className="kp-input flex-1 resize-none"
+    placeholder={selected ? "Type a message" : "Select a chat first"}
+    disabled={!selected}
+    value={composer}
+    onChange={(e) => setComposer(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    }}
+  />
+
+  <button
+    onClick={sendMessage}
+    disabled={!selected}
+    className={`kp-btn p-3 rounded-full ${selected ? "kp-btn-gold text-white" : "bg-gray-300 text-white"}`}
+    title={selected ? "Send" : "Select a chat first"}
+  >
+    <Send size={16} />
+  </button>
+</div>
+
               onClick={sendMessage}
               disabled={!selected}
               className="p-3 rounded-full text-white"
