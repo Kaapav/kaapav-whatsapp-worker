@@ -43,7 +43,7 @@ body{
 .kp-btn-gold:hover{ filter:brightness(.96) }
 
 /* message bubbles */
-.kp-bubble{ @apply max-w-[78%] p-3 rounded-2xl shadow }
+.kp-bubble{ @apply max-w-[78%] p-3 rounded-2xl shadow; }
 .kp-out{ background:var(--kp-gold); color:#fff }
 .kp-in { background:var(--kp-paper); color:var(--kp-ink); border:1px solid rgba(196,149,47,.14) }
 
