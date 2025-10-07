@@ -22,15 +22,16 @@ import {
 } from "lucide-react";
 
 export default function AdminWhatsAppPanel() {
-  // ======= THEME =======
+  // ======= THEME (used only for tiny inline borders) =======
   const GOLD = "#C4952F";
   const WHITE = "#FFFFFF";
-  const PAPER = "#FAFAFA";
+  const PAPER = "#FFF8EB";
   const TEXT = "#1F1C17";
 
   // ======= ENV (same-origin) =======
   const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "/socket.io";
   const apiBase = import.meta.env?.VITE_API_URL ?? "/api";
+  const BUSINESS_NUMBER = "9148330016";
 
   // ======= AUTH =======
   const [token, setToken] = useState(() => (localStorage.getItem("ADMIN_TOKEN") || "").trim());
@@ -311,7 +312,7 @@ export default function AdminWhatsAppPanel() {
         `${apiBase}/catalog/search?q=${encodeURIComponent(catalogQuery || "")}`,
         { headers: { ...authHeader } }
       );
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       setProducts(Array.isArray(j) ? j : j?.items || []);
     } catch {
@@ -379,7 +380,7 @@ export default function AdminWhatsAppPanel() {
   // 1) Login/Signup screen ONLY
   if (loginView) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: PAPER }}>
+      <div className="min-h-screen flex items-center justify-center kp-app">
         <div
           className="w-full max-w-sm rounded-2xl shadow p-5"
           style={{ background: WHITE, border: `1px solid ${GOLD}33` }}
@@ -508,15 +509,9 @@ export default function AdminWhatsAppPanel() {
 
   // 2) MAIN APP (post-login only)
   return (
-    <div
-      className="min-h-screen h-screen grid grid-rows-[auto,1fr]"
-      style={{ background: PAPER, color: TEXT }}
-    >
+    <div className="min-h-screen h-screen grid grid-rows-[auto,1fr] kp-app">
       {/* Header */}
-      <div
-        className="flex items-center justify-between px-3 sm:px-4 py-2 border-b"
-        style={{ background: WHITE, borderColor: `${GOLD}66` }}
-      >
+      <div className="kp-header flex items-center justify-between px-3 sm:px-4 py-2 border-b">
         <div className="flex items-center gap-2">
           <button
             className="p-2 rounded-md border sm:hidden"
@@ -526,18 +521,15 @@ export default function AdminWhatsAppPanel() {
             {menuOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
           <div className="text-lg font-semibold">Kaapav Chats</div>
-          <span
-            className={`ml-2 text-xs px-2 py-0.5 rounded-full text-white ${
-              connected ? "bg-emerald-600" : "bg-red-600"
-            }`}
-          >
+          <span className={`ml-2 kp-badge ${connected ? "kp-online" : "kp-offline"}`}>
             {connected ? "Online" : "Offline"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 text-xs">
+          <div className="opacity-70">WA: +{BUSINESS_NUMBER}</div>
           <label
             className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
-            style={{ borderColor: `${GOLD}55`, background: WHITE }}
+            style={{ borderColor: `${GOLD}35`, background: WHITE }}
           >
             <Settings size={14} /> Auto-hide actions
             <input
@@ -561,22 +553,17 @@ export default function AdminWhatsAppPanel() {
       {/* Body */}
       <div className="grid grid-cols-12 gap-0 sm:gap-3 p-0 sm:p-3 overflow-hidden min-h-0 h-full">
         {/* Left: Sessions */}
-       <div
-  id="sessionPane"
-  className={`kp-leftpane h-full min-h-0 overflow-hidden transition-all duration-200 ${
-    menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
-  }`}
->
-
-          <div
-            className="p-3 flex gap-2 items-center sticky top-0 z-10 border-b"
-            style={{ background: WHITE, borderColor: `${GOLD}33` }}
-          >
+        <div
+          id="sessionPane"
+          className={`kp-leftpane h-full min-h-0 overflow-hidden transition-all duration-200 ${
+            menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
+          }`}
+        >
+          <div className="p-3 flex gap-2 items-center sticky top-0 z-10 border-b" style={{ borderColor: `${GOLD}20` }}>
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-2 top-2.5 opacity-50" />
+              <Search size={16} className="kp-search-icon" />
               <input
-                className="w-full pl-7 pr-2 py-2 rounded-md border"
-                style={{ background: PAPER, borderColor: `${GOLD}55` }}
+                className="kp-input kp-search"
                 placeholder="Search or start new chat"
                 value={sessionFilter}
                 onChange={(e) => setSessionFilter(e.target.value)}
@@ -590,13 +577,15 @@ export default function AdminWhatsAppPanel() {
               Go
             </button>
           </div>
-          <div className="overflow-auto h-full divide-y" style={{ borderColor: `${GOLD}22` }}>
+          <div className="overflow-auto h-full divide-y" style={{ borderColor: `${GOLD}18` }}>
             {filteredSessions.map((s) => (
               <div
                 key={s.userId}
-                className="px-3 py-3 cursor-pointer hover:bg-[#00000005]"
+                className="px-3 py-3 cursor-pointer kp-row"
                 onClick={() => {
                   setSelected(s.userId);
+                  // auto-hide menu on mobile
+                  if (window.innerWidth < 640) setMenuOpen(false);
                   socketRef.current?.emit("fetch_session_messages", s.userId);
                 }}
                 style={{ background: selected === s.userId ? `#FFF8EB` : WHITE }}
@@ -624,17 +613,16 @@ export default function AdminWhatsAppPanel() {
         {/* Middle: Chat */}
         <div
           id="chatPane"
-          className={`${
+          className={`kp-chatpane ${
             menuOpen ? "col-span-12 sm:col-span-6" : "col-span-12 sm:col-span-9"
-          } flex flex-col h-full min-h-0 sm:rounded-xl overflow-hidden`}
-          style={{ background: PAPER, border: `1px solid ${GOLD}33` }}
+          } flex flex-col h-full min-h-0 overflow-hidden`}
         >
           {/* Chat Header */}
-          <div className="px-3 py-2 flex items-center justify-between border-b" style={{ background: WHITE, borderColor: `${GOLD}33` }}>
+          <div className="px-3 py-2 flex items-center justify-between border-b" style={{ borderColor: `${GOLD}20` }}>
             <div className="flex items-center gap-2">
               <button
                 className="p-2 rounded-md border hidden sm:inline-flex"
-                style={{ borderColor: `${GOLD}66` }}
+                style={{ borderColor: `${GOLD}35` }}
                 onClick={() => setMenuOpen(!menuOpen)}
               >
                 {menuOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -660,76 +648,73 @@ export default function AdminWhatsAppPanel() {
             {messages.map((m) => {
               const isOut = m.direction === "out" || m.from === "admin";
               return (
-               <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-  <div className={`kp-bubble ${isOut ? "kp-out" : "kp-in"}`}>
-    <div className="kp-meta mb-1 flex items-center gap-1">
-      {isOut ? "You" : m.from || "User"} •{" "}
-      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-      {isOut && <StatusTick status={m.status} />}
-    </div>
-    {m.media ? (
-      <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
-    ) : (
-      <div className="text-sm whitespace-pre-wrap">{m.text}</div>
-    )}
-  </div>
-</div>
-       );
+                <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
+                  <div className={`kp-bubble ${isOut ? "kp-bubble-out" : "kp-bubble-in"}`}>
+                    <div className="kp-meta">
+                      {isOut ? "You" : m.from || "User"} •{" "}
+                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {isOut && <StatusTick status={m.status} />}
+                    </div>
+                    {m.media ? (
+                      <div className="text-sm">[media] {m.media?.name || m.media?.url}</div>
+                    ) : (
+                      <div className="text-sm whitespace-pre-wrap">{m.text}</div>
+                    )}
+                  </div>
+                </div>
+              );
             })}
           </div>
 
-{/* Composer */}
-<div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: "#FFFFFF", borderColor: "rgba(196,149,47,.20)" }}>
-  <label className="kp-input cursor-pointer text-xs flex items-center gap-2">
-    <Upload size={16} /> Attach
-    <input
-      type="file"
-      className="hidden"
-      onChange={(e) => uploadMedia(e.target.files?.[0])}
-    />
-  </label>
+          {/* Composer */}
+          <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ borderColor: `${GOLD}20`, background: WHITE }}>
+            <label className="kp-input cursor-pointer text-xs flex items-center gap-2">
+              <Upload size={16} /> Attach
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => uploadMedia(e.target.files?.[0])}
+              />
+            </label>
 
-  <textarea
-    rows={1}
-    className="kp-input flex-1 resize-none"
-    placeholder={selected ? "Type a message" : "Select a chat first"}
-    disabled={!selected}
-    value={composer}
-    onChange={(e) => setComposer(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    }}
-  />
+            <textarea
+              rows={1}
+              className="kp-input flex-1 resize-none"
+              placeholder={selected ? "Type a message" : "Select a chat first"}
+              disabled={!selected}
+              value={composer}
+              onChange={(e) => setComposer(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+            />
 
-  <button
-    onClick={sendMessage}
-    disabled={!selected}
-    className={`kp-btn p-3 rounded-full ${selected ? "kp-btn-gold text-white" : "bg-gray-300 text-white"}`}
-    title={selected ? "Send" : "Select a chat first"}
-  >
-    <Send size={16} />
-  </button>
-</div>
-{/* ↑↑ end Composer */}
+            <button
+              onClick={sendMessage}
+              disabled={!selected}
+              className={`kp-btn p-3 rounded-full ${selected ? "kp-btn-gold" : "bg-gray-300 text-white"}`}
+              title={selected ? "Send" : "Select a chat first"}
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        </div>
 
-/* Right spacer (3rd pane) */
-<div
-  className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl"
-  style={{ background: "#FFFFFF", border: "1px solid rgba(196,149,47,.07)" }}
-/>
-</div> {/* ← closes: grid middle/right columns wrapper: className='grid grid-cols-12 ...' */}
+        {/* Right spacer (3rd pane) */}
+        <div className="kp-rightpane hidden sm:block sm:col-span-3 h-full min-h-0" />
+      </div>
 
-{/* Mobile FAB */}
-<button
-  className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
-  onClick={() => setDrawerOpen(true)}
-  style={{ background: "#C4952F" }}
->
-  <Menu size={18} />
-</button>
+      {/* Mobile FAB */}
+      <button
+        className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
+        onClick={() => setDrawerOpen(true)}
+        style={{ background: GOLD }}
+      >
+        <Menu size={18} />
+      </button>
 
       {/* Actions Drawer */}
       <div className={`fixed inset-0 z-40 transition ${drawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
@@ -744,7 +729,7 @@ export default function AdminWhatsAppPanel() {
           }`}
           style={{ background: WHITE }}
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: `${GOLD}33`, background: PAPER }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: `${GOLD}20`, background: PAPER }}>
             <div className="font-semibold" style={{ color: TEXT }}>Actions</div>
             <button onClick={closeDrawer} className="p-2 rounded" style={{ background: "#0000000d" }}>
               <X size={18} />
@@ -754,16 +739,16 @@ export default function AdminWhatsAppPanel() {
           <div className="p-4 space-y-4">
             {/* Tiles */}
             <div className="grid grid-cols-4 gap-2 text-sm">
-              <button onClick={() => openAction("pay")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "pay" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
+              <button onClick={() => openAction("pay")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "pay" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}35`, background: WHITE }}>
                 <CreditCard size={18} /> Pay
               </button>
-              <button onClick={() => openAction("catalogue")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "catalogue" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
+              <button onClick={() => openAction("catalogue")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "catalogue" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}35`, background: WHITE }}>
                 <Package size={18} /> Catalogue
               </button>
-              <button onClick={() => openAction("ship")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "ship" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
+              <button onClick={() => openAction("ship")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "ship" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}35`, background: WHITE }}>
                 <Truck size={18} /> Ship
               </button>
-              <button onClick={() => openAction("broadcast")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "broadcast" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}55`, background: WHITE }}>
+              <button onClick={() => openAction("broadcast")} className={`p-3 rounded-xl border flex flex-col items-center gap-2 ${activeAction === "broadcast" ? "shadow" : ""}`} style={{ borderColor: `${GOLD}35`, background: WHITE }}>
                 <Megaphone size={18} /> Broadcast
               </button>
             </div>
@@ -774,16 +759,15 @@ export default function AdminWhatsAppPanel() {
                 <div className="text-xs opacity-70">Send Razorpay payment link {selected ? `to ${selected}` : "(enter numbers below if no chat selected)"}.</div>
                 {!selected && (
                   <input
-                    className="w-full px-3 py-2 rounded-md border"
-                    style={{ borderColor: `${GOLD}55` }}
+                    className="kp-input"
                     placeholder="Numbers (comma separated, intl format)"
                     value={catalogRecipients}
                     onChange={(e) => setCatalogRecipients(e.target.value)}
                   />
                 )}
                 <div className="flex gap-2">
-                  <input className="w-32 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                  <input className="flex-1 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Note (optional)" value={payNote} onChange={(e) => setPayNote(e.target.value)} />
+                  <input className="kp-input w-32" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                  <input className="kp-input flex-1" placeholder="Note (optional)" value={payNote} onChange={(e) => setPayNote(e.target.value)} />
                 </div>
                 <button onClick={submitPayment} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Send Link
@@ -797,22 +781,21 @@ export default function AdminWhatsAppPanel() {
                 <div className="text-xs opacity-70">Search products and send as WhatsApp product card(s).</div>
                 {!selected && (
                   <input
-                    className="w-full px-3 py-2 rounded-md border"
-                    style={{ borderColor: `${GOLD}55` }}
+                    className="kp-input"
                     placeholder="Numbers (comma separated, intl format)"
                     value={catalogRecipients}
                     onChange={(e) => setCatalogRecipients(e.target.value)}
                   />
                 )}
                 <div className="flex gap-2">
-                  <input className="flex-1 px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Search product or SKU" value={catalogQuery} onChange={(e) => setCatalogQuery(e.target.value)} />
+                  <input className="kp-input flex-1" placeholder="Search product or SKU" value={catalogQuery} onChange={(e) => setCatalogQuery(e.target.value)} />
                   <button onClick={searchCatalog} className="px-3 rounded-md text-white" style={{ background: GOLD }}>
                     Search
                   </button>
                 </div>
                 <div className="max-h-64 overflow-auto space-y-2">
                   {products.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border" style={{ borderColor: `${GOLD}44`, background: WHITE }}>
+                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg border" style={{ borderColor: `${GOLD}20`, background: WHITE }}>
                       {p.imageUrl ? (
                         <img src={p.imageUrl} alt={p.title} className="w-10 h-10 rounded object-cover" />
                       ) : (
@@ -838,7 +821,7 @@ export default function AdminWhatsAppPanel() {
             {activeAction === "ship" && (
               <div className="space-y-3">
                 <div className="text-xs opacity-70">Push Shiprocket tracking update to the chat or to a number.</div>
-                <input className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="AWB" value={awb} onChange={(e) => setAwb(e.target.value)} />
+                <input className="kp-input" placeholder="AWB" value={awb} onChange={(e) => setAwb(e.target.value)} />
                 <button onClick={trackShipment} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Send Tracking
                 </button>
@@ -849,8 +832,8 @@ export default function AdminWhatsAppPanel() {
             {activeAction === "broadcast" && (
               <div className="space-y-3">
                 <div className="text-xs opacity-70">Send a one-shot broadcast to a tag/segment (e.g., ALL / COD / HOT).</div>
-                <input className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55` }} placeholder="Segment tag (e.g., ALL)" value={broadcastTag} onChange={(e) => setBroadcastTag(e.target.value)} />
-                <textarea rows={4} className="w-full px-3 py-2 rounded-md border" style={{ borderColor: `${GOLD}55`, background: PAPER }} placeholder="Message…" value={broadcastText} onChange={(e) => setBroadcastText(e.target.value)} />
+                <input className="kp-input" placeholder="Segment tag (e.g., ALL)" value={broadcastTag} onChange={(e) => setBroadcastTag(e.target.value)} />
+                <textarea rows={4} className="kp-input" style={{ background: PAPER }} placeholder="Message…" value={broadcastText} onChange={(e) => setBroadcastText(e.target.value)} />
                 <button onClick={doBroadcast} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
                   Queue Broadcast
                 </button>
