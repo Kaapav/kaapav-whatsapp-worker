@@ -103,20 +103,6 @@ app.get('/', (req, res) => {
 app.get('/test/selfcheck', async (req, res) => {
   res.status(200).json({ ok: true, status: 'alive', timestamp: Date.now() });
 });
-// 🔑 INSERT AUTH + ACTION STUBS HERE
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_TOKEN';
-
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
-  res.json({ token: ADMIN_TOKEN });
-});
-
-app.post('/api/auth/register', (req, res) => {
-  const { username, password, role } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
-  res.json({ token: ADMIN_TOKEN, role: role || 'admin' });
-});
 
 // Feature stubs
 app.post('/api/razorpay/link',     (req,res)=> res.json({ ok:true }));
