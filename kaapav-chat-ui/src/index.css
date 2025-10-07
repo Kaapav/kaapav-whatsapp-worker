@@ -53,3 +53,78 @@ body{
 /* scrollbars */
 ::-webkit-scrollbar{ width:8px }
 ::-webkit-scrollbar-thumb{ background:var(--kp-gold); border-radius:6px }
+
+/* === Kaapav WhatsApp Theme (Gold/White) === */
+:root{
+  --kp-gold:#C4952F;
+  --kp-gold-10:rgba(196,149,47,.10);
+  --kp-gold-20:rgba(196,149,47,.20);
+  --kp-gold-35:rgba(196,149,47,.35);
+  --kp-paper:#FFF8EB;
+  --kp-white:#FFFFFF;
+  --kp-text:#1F1C17;
+}
+
+.kp-app{ background:var(--kp-paper); color:var(--kp-text); }
+.kp-header{ background:var(--kp-white); border-bottom:1px solid var(--kp-gold-35); }
+
+.kp-leftpane{
+  background:var(--kp-white);
+  border:1px solid var(--kp-gold-20);
+  border-radius:0.75rem;
+}
+.kp-chatpane{
+  background:var(--kp-paper);
+  border:1px solid var(--kp-gold-20);
+  border-radius:0.75rem;
+}
+.kp-rightpane{
+  background:var(--kp-white);
+  border:1px solid var(--kp-gold-10);
+  border-radius:0.75rem;
+}
+
+/* inputs & buttons */
+.kp-input{
+  background:var(--kp-paper);
+  border:1px solid var(--kp-gold-35);
+  border-radius:0.6rem;
+  padding:0.55rem 0.75rem;
+}
+.kp-input:focus{ outline:2px solid var(--kp-gold-20); }
+
+.kp-btn{ border-radius:9999px; }
+.kp-btn-gold{ background:var(--kp-gold); color:#fff; }
+.kp-btn-gold[disabled]{ opacity:.5; }
+
+/* list row hover */
+.kp-row:hover{ background:rgba(0,0,0,.03); }
+
+/* message bubbles */
+.kp-bubble{
+  max-width:78%;
+  padding:.55rem .75rem;
+  border-radius:1.25rem;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.kp-bubble-in{
+  background:var(--kp-white);
+  color:var(--kp-text);
+  border:1px solid var(--kp-gold-10);
+}
+.kp-bubble-out{
+  background:var(--kp-gold);
+  color:#fff;
+  border:none;
+}
+.kp-meta{ font-size:10px; opacity:.8; margin-bottom:.25rem; display:flex; gap:.25rem; align-items:center; }
+
+/* search input */
+.kp-search{ padding-left:2rem; }
+.kp-search-icon{ position:absolute; left:.5rem; top:.65rem; opacity:.5; }
+
+/* “Online/Offline” badge */
+.kp-badge{ color:#fff; font-size:12px; padding:.15rem .5rem; border-radius:9999px; }
+.kp-online{ background:#059669; }  /* emerald-600 */
+.kp-offline{ background:#dc2626; } /* red-600 */
+
