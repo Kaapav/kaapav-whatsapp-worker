@@ -113,23 +113,20 @@ app.post('/api/broadcast',         (req,res)=> res.json({ ok:true }));
 app.post('/api/messages/upload',   (req,res)=> res.json({ ok:true, id:`out_${Date.now()}` }));
 
 // ---- AUTH (DB-less stub; keeps your ADMIN_TOKEN) ----
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_TOKEN';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_PROD_ADMIN';
 
 app.post('/api/auth/register', (req, res) => {
   const { username, password, role } = req.body || {};
   if (!username || !password) {
-    return res.status(400).json({ error: 'Missing creds' });
+    if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
+    return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
   }
-  // pretend we created the user; return token OR just 200 and let UI switch to login
-  return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
-});
+ 
+
 
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Missing creds' });
-  }
-  // accept anything for now and hand back token
+  if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
   return res.json({ token: ADMIN_TOKEN });
 });
 
