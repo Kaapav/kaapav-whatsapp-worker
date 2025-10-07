@@ -678,8 +678,8 @@ export default function AdminWhatsAppPanel() {
             })}
           </div>
 
-          {/* Composer */}
-          <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: "#FFFFFF", borderColor: "rgba(196,149,47,.20)" }}>
+         {/* Composer */}
+<div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: "#FFFFFF", borderColor: "rgba(196,149,47,.20)" }}>
   <label className="kp-input cursor-pointer text-xs flex items-center gap-2">
     <Upload size={16} /> Attach
     <input
@@ -713,16 +713,6 @@ export default function AdminWhatsAppPanel() {
     <Send size={16} />
   </button>
 </div>
-
-              onClick={sendMessage}
-              disabled={!selected}
-              className="p-3 rounded-full text-white"
-              style={{ background: selected ? GOLD : "#CFCFCF" }}
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        </div>
 
         {/* Right spacer (3rd pane) */}
         <div className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl" style={{ background: WHITE, border: `1px solid ${GOLD}11` }} />
