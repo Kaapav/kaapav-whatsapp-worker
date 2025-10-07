@@ -54,109 +54,70 @@ body{
 ::-webkit-scrollbar{ width:8px }
 ::-webkit-scrollbar-thumb{ background:var(--kp-gold); border-radius:6px }
 
-/* === Kaapav WhatsApp Theme (Gold/White) — Polished === */
+/* === Kaapav WhatsApp Theme (Gold/White) — Add to end of index.css === */
 :root{
   --kp-gold:#C4952F;
-  --kp-gold-08:rgba(196,149,47,.08);
-  --kp-gold-12:rgba(196,149,47,.12);
+  --kp-gold-10:rgba(196,149,47,.10);
   --kp-gold-18:rgba(196,149,47,.18);
-  --kp-gold-28:rgba(196,149,47,.28);
-  --kp-paper:#FFFDF8;      /* slightly warm paper */
+  --kp-gold-35:rgba(196,149,47,.35);
+  --kp-paper:#FFF8EB;
   --kp-white:#FFFFFF;
-  --kp-ink:#1F1C17;
+  --kp-text:#1F1C17;
 }
 
-.kp-app{ background:var(--kp-paper); color:var(--kp-ink); }
-.kp-header{
-  background:var(--kp-white);
-  border-bottom:1px solid var(--kp-gold-28);
-}
+.kp-app{ background:var(--kp-paper); color:var(--kp-text); }
 
-/* Panes */
-.kp-leftpane,
-.kp-chatpane,
-.kp-rightpane{
+/* header line */
+.kp-header{ background:var(--kp-white); border-bottom:1px solid var(--kp-gold-35); }
+
+/* three panes */
+.kp-leftpane,.kp-chatpane,.kp-rightpane{
   background:var(--kp-white);
   border:1px solid var(--kp-gold-18);
   border-radius:0.75rem;
 }
 
-.kp-chatpane{
-  background:var(--kp-paper);
-}
-
-/* Search + inputs + composer */
+/* inputs (search/composer) */
 .kp-input{
-  width:100%;
-  background:var(--kp-white);
-  border:1px solid var(--kp-gold-28);
-  border-radius:0.625rem;
+  background:var(--kp-paper);
+  border:1px solid var(--kp-gold-35);
+  border-radius:0.6rem;
   padding:.55rem .75rem;
 }
-.kp-input:focus{ outline:2px solid var(--kp-gold-12); }
+.kp-input:focus{ outline:2px solid var(--kp-gold-18); }
 
-/* Buttons */
-.kp-btn{ border-radius:9999px; font-weight:600; transition:filter .15s ease; }
+/* buttons */
+.kp-btn{ border-radius:9999px; font-weight:500; transition:filter .15s ease; }
 .kp-btn-gold{ background:var(--kp-gold); color:#fff; }
 .kp-btn-gold:hover{ filter:brightness(.96); }
-.kp-btn[disabled]{ opacity:.55; cursor:not-allowed; }
 
-/* Session list rows */
-.kp-row{ cursor:pointer; }
+/* list hover */
 .kp-row:hover{ background:rgba(0,0,0,.03); }
 
-/* Message bubbles */
+/* message bubbles */
 .kp-bubble{
   max-width:78%;
-  padding:.6rem .8rem;
+  padding:.6rem .75rem;
   border-radius:1.25rem;
   box-shadow:0 1px 3px rgba(0,0,0,.06);
-  position:relative;
 }
-.kp-in{
+.kp-bubble-in{
   background:var(--kp-white);
-  color:var(--kp-ink);
-  border:1px solid var(--kp-gold-12);
+  color:var(--kp-text);
+  border:1px solid var(--kp-gold-10);
 }
-.kp-out{
+.kp-bubble-out{
   background:var(--kp-gold);
   color:#fff;
   border:none;
 }
-.kp-meta{ font-size:10px; opacity:.8; margin-bottom:.25rem; display:flex; gap:.25rem; align-items:center; }
+.kp-meta{ font-size:10px; opacity:.8; margin-bottom:.2rem; display:flex; gap:.25rem; align-items:center; }
 
-/* Bubble tails (subtle) */
-.kp-in:after, .kp-out:after{
-  content:"";
-  position:absolute;
-  bottom:2px;
-  width:0;height:0;border:8px solid transparent;
-}
-.kp-in:after{
-  left:-4px;
-  border-right-color:var(--kp-white);
-  border-left:0;border-top:0;border-bottom:0;
-}
-.kp-out:after{
-  right:-4px;
-  border-left-color:var(--kp-gold);
-  border-right:0;border-top:0;border-bottom:0;
-}
-
-/* Scrollbars */
-::-webkit-scrollbar{ width:8px }
-::-webkit-scrollbar-thumb{ background:var(--kp-gold); border-radius:6px }
-
-/* Status pill */
-.kp-pill{ color:#fff; font-size:12px; padding:.15rem .5rem; border-radius:9999px; }
+/* online/offline pill */
+.kp-pill{ color:#fff; font-size:12px; padding:.2rem .55rem; border-radius:9999px; }
 .kp-online{ background:#059669; }
 .kp-offline{ background:#dc2626; }
 
-/* Action tiles */
-.kp-tile{
-  border:1px solid var(--kp-gold-28);
-  background:var(--kp-white);
-  border-radius:0.875rem;
-  padding:.75rem;
-}
-.kp-tile.active{ box-shadow:0 2px 10px rgba(0,0,0,.06) }
+/* small search icon helper */
+.kp-search{ padding-left:2rem; }
+.kp-search-icon{ position:absolute; left:.55rem; top:.65rem; opacity:.5; }
