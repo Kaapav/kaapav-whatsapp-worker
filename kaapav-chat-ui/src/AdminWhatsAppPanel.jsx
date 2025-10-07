@@ -678,7 +678,7 @@ export default function AdminWhatsAppPanel() {
             })}
           </div>
 
-         {/* Composer */}
+{/* Composer */}
 <div className="p-2 sm:p-3 flex items-center gap-2 border-t" style={{ background: "#FFFFFF", borderColor: "rgba(196,149,47,.20)" }}>
   <label className="kp-input cursor-pointer text-xs flex items-center gap-2">
     <Upload size={16} /> Attach
@@ -713,19 +713,23 @@ export default function AdminWhatsAppPanel() {
     <Send size={16} />
   </button>
 </div>
+{/* ↑↑ end Composer */}
 
-        {/* Right spacer (3rd pane) */}
-        <div className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl" style={{ background: WHITE, border: `1px solid ${GOLD}11` }} />
-      </div>
+/* Right spacer (3rd pane) */
+<div
+  className="hidden sm:block sm:col-span-3 h-full min-h-0 sm:rounded-xl"
+  style={{ background: "#FFFFFF", border: "1px solid rgba(196,149,47,.07)" }}
+/>
+</div> {/* ← closes: grid middle/right columns wrapper: className='grid grid-cols-12 ...' */}
 
-      {/* Mobile FAB */}
-      <button
-        className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
-        onClick={() => setDrawerOpen(true)}
-        style={{ background: GOLD }}
-      >
-        <Menu size={18} />
-      </button>
+{/* Mobile FAB */}
+<button
+  className="sm:hidden fixed bottom-4 right-4 p-4 rounded-full shadow text-white"
+  onClick={() => setDrawerOpen(true)}
+  style={{ background: "#C4952F" }}
+>
+  <Menu size={18} />
+</button>
 
       {/* Actions Drawer */}
       <div className={`fixed inset-0 z-40 transition ${drawerOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
