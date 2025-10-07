@@ -39,9 +39,9 @@ export default function WhatsAppAdminGoldWhite() {
   const TEXT = "#1F1C17"; // subtle charcoal for text only
 
   // ======= ENV =======
-  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "https://www.crm.kaapav.com/socket.io";
-  const apiBase = import.meta.env?.VITE_API_URL ?? "https://www.crm.kaapav.com/api";
-  const DEFAULT_WA = "919148330016"; // +91 91483 30016 in international format
+  const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "/socket.io";
+  const apiBase   = import.meta.env?.VITE_API_URL   ?? "/api";
+  const DEFAULT_WA = "91 91483 30016"; // +91 91483 30016 in international format
 
   // ======= AUTH =======
   const [token, setToken] = useState(() => (localStorage.getItem("ADMIN_TOKEN") || "").trim());
@@ -164,7 +164,7 @@ export default function WhatsAppAdminGoldWhite() {
     });
 
     return () => sock.disconnect();
-  }, [token]);
+  }, [token, socketUrl]);
 
   // ======= LOGIN (Username/Password -> JWT) =======
   const doLogin = async (e) => {
@@ -431,7 +431,7 @@ const doSignup = async (e) => {
   </button>
 </div>
 
-          {!showSignup ? (
+ {!showSignup ? (
   <form onSubmit={doLogin} className="space-y-3">
     <div>
       <label className="text-xs opacity-70">Username</label>
@@ -442,7 +442,20 @@ const doSignup = async (e) => {
         required
       />
     </div>
-    </form>
+    <div>
+      <label className="text-xs opacity-70">Password</label>
+      <input
+        type="password"
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={login.password}
+        onChange={(e)=>setLogin({...login, password:e.target.value})}
+        required
+      />
+    </div>
+    <button disabled={authBusy} className="w-full py-2 rounded-md text-white font-medium" style={{ background: GOLD }}>
+      {authBusy ? 'Signing in…' : 'Login'}
+    </button>
+  </form>
 ) : (
   <form onSubmit={doSignup} className="space-y-3">
     <div>
@@ -453,7 +466,17 @@ const doSignup = async (e) => {
         onChange={(e)=>setSignup({...signup, username:e.target.value})}
         required
       />
-    
+    </div>
+    <div>
+      <label className="text-xs opacity-70">Password</label>
+      <input
+        type="password"
+        className="mt-1 w-full px-3 py-2 rounded-md border"
+        value={signup.password}
+        onChange={(e)=>setSignup({...signup, password:e.target.value})}
+        required
+      />
+    </div>
     <div>
       <label className="text-xs opacity-70">Confirm Password</label>
       <input
@@ -479,81 +502,6 @@ const doSignup = async (e) => {
     </button>
   </form>
 )}
-
-            <div>
-              <label className="text-xs opacity-70">Password</label>
-              <input
-                type="password"
-                className="mt-1 w-full px-3 py-2 rounded-md border"
-                value={login.password}
-                onChange={(e) => setLogin({ ...login, password: e.target.value })}
-                required
-              />
-            </div>
-            <button
-              disabled={authBusy}
-              className="w-full py-2 rounded-md text-white font-medium"
-              style={{ background: GOLD }}
-            >
-              {authBusy ? "Signing in…" : "Login"}
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="min-h-screen h-screen grid grid-rows-[auto,1fr]"
-      style={{ background: PAPER, color: TEXT }}
-    >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-3 sm:px-4 py-2 border-b"
-        style={{ background: WHITE, borderColor: `${GOLD}66` }}
-      >
-        <div className="flex items-center gap-2">
-          <button
-            className="p-2 rounded-md border sm:hidden"
-            style={{ borderColor: `${GOLD}66` }}
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            {menuOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-          <div className="text-lg font-semibold">Kaapav Chats</div>
-          <span
-            className={`ml-2 text-xs px-2 py-0.5 rounded-full text-white ${
-              connected ? "bg-emerald-600" : "bg-red-600"
-            }`}
-          >
-            {connected ? "Online" : "Offline"}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <label
-            className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
-            style={{ borderColor: `${GOLD}55`, background: WHITE }}
-          >
-            <Settings size={14} /> Auto‑hide actions
-            <input
-              type="checkbox"
-              className="accent-current"
-              checked={autoHideActions}
-              onChange={(e) => setAutoHideActions(e.target.checked)}
-            />
-          </label>
-          <button
-            onClick={doLogout}
-            title="Logout"
-            className="px-3 py-1 rounded-md text-white"
-            style={{ background: GOLD }}
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-
       {/* Body */}
       <div className="grid grid-cols-12 gap-0 sm:gap-3 p-0 sm:p-3 overflow-hidden min-h-0 h-full">
         {/* Left: Sessions (collapsible) */}
