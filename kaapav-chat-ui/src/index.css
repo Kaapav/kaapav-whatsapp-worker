@@ -1,53 +1,55 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@500;600;700&display=swap");
-
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Global */
-body {
-  @apply bg-white text-black;
-  margin: 0;
-  font-family: "Inter", sans-serif;
+/* ===== Base ===== */
+:root{
+  --kp-gold:#C4952F;      /* Kaapav gold */
+  --kp-gold-soft:#FFF8EB; /* pale gold surface */
+  --kp-paper:#FFFFFF;     /* paper */
+  --kp-ink:#1F1C17;       /* charcoal text */
+  --kp-line:rgba(196,149,47,.18);
 }
 
-/* Luxury headers */
-h1, h2, h3, h4, h5 {
-  font-family: "Playfair Display", serif;
-  letter-spacing: 0.5px;
-  color: #111;
+html,body,#root{height:100%}
+body{
+  margin:0;
+  font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Arial,"Noto Sans",sans-serif;
+  background:var(--kp-paper);
+  color:var(--kp-ink);
 }
 
-/* Gold utilities */
-.gold-text {
-  color: #facc15; /* luxury gold */
+/* ===== Kaapav components ===== */
+.kp-header{ background:var(--kp-paper); border-bottom:1px solid rgba(196,149,47,.40) }
+.kp-badge{ background:#16a34a; color:#fff }   /* online pill */
+
+.kp-leftpane,.kp-chatpane,.kp-rightpane{
+  background:var(--kp-paper);
+  border:1px solid var(--kp-line);
+  border-radius:0.75rem;
 }
 
-.gold-bg {
-  background-color: #facc15;
+/* inputs / search / composer */
+.kp-input{
+  @apply w-full px-3 py-2 rounded-md border;
+  background:var(--kp-gold-soft);
+  border-color:rgba(196,149,47,.55);
 }
 
-/* Buttons */
-.btn {
-  @apply px-4 py-2 rounded-2xl shadow-sm font-medium transition-all;
-}
+/* buttons */
+.kp-btn{ @apply rounded-md font-medium transition-colors; }
+.kp-btn-gold{ background:var(--kp-gold); color:#fff }
+.kp-btn-gold:hover{ filter:brightness(.96) }
 
-.btn-gold {
-  @apply bg-[#facc15] text-black hover:bg-yellow-400;
-}
+/* message bubbles */
+.kp-bubble{ @apply max-w-[78%] p-3 rounded-2xl shadow }
+.kp-out{ background:var(--kp-gold); color:#fff }
+.kp-in { background:var(--kp-paper); color:var(--kp-ink); border:1px solid rgba(196,149,47,.14) }
 
-.btn-outline {
-  @apply border border-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800;
-}
+/* small status text */
+.kp-meta{ font-size:10px; opacity:.8 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f9f9f9;
-}
-::-webkit-scrollbar-thumb {
-  background-color: #facc15;
-  border-radius: 6px;
-}
+/* scrollbars */
+::-webkit-scrollbar{ width:8px }
+::-webkit-scrollbar-thumb{ background:var(--kp-gold); border-radius:6px }
