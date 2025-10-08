@@ -207,5 +207,196 @@
 
     })();
   </script>
+<!-- socket.io client (keep this before the inline script) -->
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+
+<script>
+(function(){
+  // ---------- CONFIG ----------
+  // Prefer explicit host/path globals if you set them earlier:
+  // window.__SOCKET_HOST__ = 'https://crm.kaapav.com'   // optional
+  // window.__SOCKET_PATH__ = '/socket.io'              // optional
+  // window.__API_BASE__ = 'https://crm.kaapav.com/api'  // optional
+  const ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || (function(){ const t = prompt('ADMIN_TOKEN (paste)'); if(t) localStorage.setItem('ADMIN_TOKEN', t); return t; })();
+  if(!ADMIN_TOKEN){
+    console.error('ADMIN_TOKEN missing — aborting socket connect');
+    const sEl = document.getElementById('status'); if(sEl) sEl.textContent = 'Offline — no token';
+    return;
+  }
+
+  const SOCKET_HOST = (typeof window.__SOCKET_HOST__ !== 'undefined') ? window.__SOCKET_HOST__ : window.location.origin;
+  const SOCKET_PATH = (typeof window.__SOCKET_PATH__ !== 'undefined') ? window.__SOCKET_PATH__ : undefined;
+  const API_BASE = (typeof window.__API_BASE__ !== 'undefined') ? window.__API_BASE__ : (window.location.origin + '/api');
+
+  const socketOpts = { transports: ['websocket','polling'], auth: { token: ADMIN_TOKEN } };
+  if(SOCKET_PATH) socketOpts.path = SOCKET_PATH;
+
+  // ---------- INIT SOCKET ----------
+  let socket;
+  try {
+    socket = io(SOCKET_HOST, socketOpts);
+  } catch (e) {
+    console.error('socket.io init failed', e);
+    const sEl = document.getElementById('status'); if(sEl) sEl.textContent = 'Socket init failed';
+    return;
+  }
+
+  // ---------- UI ADAPTERS (non-invasive) ----------
+  // Prefer user-provided helpers if present (so we DON'T change your UI)
+  const hasAppend = (typeof window.appendMessage === 'function');
+  const hasRenderSessions = (typeof window.renderSessions === 'function');
+
+  function safeAppend(msg){
+    try{
+      if(hasAppend) { window.appendMessage(msg); return; }
+    }catch(e){ console.warn('user appendMessage failed', e); }
+    // fallback minimal DOM append if no appendMessage provided
+    const msgsEl = document.getElementById('messages') || document.body;
+    const wrap = document.createElement('div');
+    wrap.style.padding = '8px'; wrap.style.borderBottom = '1px solid #eee';
+    const who = document.createElement('div'); who.style.fontWeight='700'; who.textContent = msgDisplayName(msg);
+    const body = document.createElement('div'); body.textContent = msgText(msg);
+    const meta = document.createElement('div'); meta.style.fontSize='12px'; meta.style.color='#666'; meta.textContent = new Date(msg.ts||Date.now()).toLocaleTimeString();
+    wrap.appendChild(who); wrap.appendChild(body); wrap.appendChild(meta);
+    msgsEl.appendChild(wrap);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  function msgText(m){
+    if(!m) return '';
+    return m.text || (m.message && (m.message.text || m.message.body)) || m.body || '';
+  }
+  function msgDisplayName(m){
+    if(!m) return 'unknown';
+    return m.from || m.name || m.session || 'unknown';
+  }
+
+  function normalize(m){
+    if(!m) return { id: 'm_' + Date.now(), from: 'unknown', text: '', ts: Date.now(), direction: 'in', raw: m };
+    const text = msgText(m);
+    const from = m.from || m.fromNumber || m.sender || (m.message && m.message.from) || (m.session) || 'unknown';
+    const ts = m.ts || m.timestamp || Date.now();
+    const id = m.id || m._id || ('m_' + ts);
+    const direction = m.direction || (m.outgoing ? 'out' : (m.from && (String(m.from).includes('admin') ? 'out' : 'in'))) ;
+    return { id, from, text, ts, direction, raw: m };
+  }
+
+  function appendNormalized(m){ safeAppend(normalize(m)); }
+
+  // ---------- CONNECTION / EVENTS ----------
+  const statusEl = document.getElementById('status');
+  function setStatus(txt, bg){ if(statusEl){ statusEl.textContent = txt; statusEl.style.background = bg || ''; } }
+
+  socket.on('connect', () => {
+    setStatus('Online', 'rgba(255,255,255,0.12)');
+    console.log('socket connected', socket.id);
+    // ask for sessions using multiple common event names (compatibility)
+    ['admin_request_sessions','request_sessions','request_sessions_snapshot','request_sessions_list','get_sessions'].forEach(ev => {
+      try{ socket.emit(ev); }catch(e){}
+    });
+    // also emit a fallback snapshot request
+    try{ socket.emit('request_sessions_snapshot'); }catch(e){}
+  });
+
+  socket.on('disconnect', (reason) => {
+    setStatus('Offline', '');
+    console.warn('socket disconnected', reason);
+  });
+
+  socket.on('connect_error', (err) => {
+    setStatus('Socket error', 'crimson');
+    console.error('socket connect_error', err && err.message ? err.message : err);
+  });
+
+  // common server events -> normalize + append
+  const incomingEventNames = ['incoming_message','new_message','message','message.in','message_received'];
+  incomingEventNames.forEach(ev => {
+    socket.on(ev, payload => {
+      if(Array.isArray(payload)) payload.forEach(p => appendNormalized(p));
+      else appendNormalized(payload);
+    });
+  });
+
+  socket.on('outgoing_message', (payload) => {
+    if(Array.isArray(payload)) payload.forEach(p => appendNormalized(Object.assign({}, p, { direction:'out' })));
+    else appendNormalized(Object.assign({}, payload, { direction:'out' }));
+  });
+
+  socket.on('sessions_snapshot', (snap) => {
+    try{
+      if(hasRenderSessions){ window.renderSessions(snap); return; }
+    }catch(e){ console.warn('renderSessions failed', e); }
+    // fallback: render session summaries into messages list (non-destructive)
+    if(Array.isArray(snap)) snap.slice(0,50).forEach(s => {
+      const last = s.lastMessage || s.last || (s.messages && s.messages[0]) || {};
+      appendNormalized({ from: s.name || s.session || s.id, text: last.text || last.body || '', ts: last.ts || Date.now() });
+    });
+  });
+
+  socket.on('session_messages', (list) => {
+    // server may send array of messages or { messages: [...] }
+    let arr = [];
+    if(Array.isArray(list)) arr = list;
+    else if(list && Array.isArray(list.messages)) arr = list.messages;
+    // if user has appendMessage, try to use it in order (oldest -> newest)
+    if(hasAppend){
+      try{ arr.forEach(m => window.appendMessage(m)); return; }catch(e){ console.warn('appendMessage failed for session_messages', e); }
+    }
+    arr.forEach(m => appendNormalized(m));
+  });
+
+  // log unexpected events lightly
+  socket.onAny((ev, data) => {
+    if(['heartbeat','typing'].includes(ev)) return;
+    console.debug('socket event ->', ev);
+  });
+
+  // ---------- SENDER (exposed) ----------
+  window.sendAdminMessage = function(to, text, cb){
+    if(!to || !text) return cb && cb({ error: 'to/text required' });
+    const payload = { to, text };
+    // prefer socket if connected
+    if(socket && socket.connected){
+      socket.emit('admin_send_message', payload, (ack) => {
+        if(ack && ack.error){ console.error('send ack error', ack); cb && cb(ack); return; }
+        appendNormalized({ from: 'You', to, text, ts: Date.now(), direction: 'out' });
+        cb && cb(null, ack || { ok: true });
+      });
+      // legacy event names for compatibility
+      socket.emit('send_message', payload);
+      socket.emit('message_to', payload);
+      return;
+    }
+    // fallback HTTP send if socket not connected
+    fetch(API_BASE + '/messages/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ADMIN_TOKEN },
+      body: JSON.stringify(payload)
+    }).then(r => r.json()).then(res => {
+      appendNormalized({ from: 'You', to, text, ts: Date.now(), direction: 'out' });
+      cb && cb(null, res);
+    }).catch(err => { cb && cb(err); });
+  };
+
+  // ---------- POLL FALLBACK (if socket doesn't connect) ----------
+  let pollTimer = null;
+  const startPoll = () => {
+    if(pollTimer) return;
+    pollTimer = setInterval(() => {
+      fetch(API_BASE + '/admin/sessions', { headers: { 'Authorization': 'Bearer ' + ADMIN_TOKEN } })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(json => { if(hasRenderSessions) try{ window.renderSessions(json); }catch(e){ console.warn(e); } })
+        .catch(()=>{/* silent */});
+    }, 5000);
+  };
+  setTimeout(()=>{ if(!socket.connected) startPoll(); }, 5000);
+
+  // expose internal for debugging
+  window.__kaapavSocket = socket;
+
+  console.log('Socket shell initialized (ADMIN_TOKEN present). Host:', SOCKET_HOST);
+})();
+</script>
+
 </body>
 </html>
