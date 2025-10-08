@@ -1,4 +1,4 @@
-// File: src/AdminWhatsAppPanel.jsx
+// File: AdminWhatsAppPanel.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import {
@@ -31,7 +31,8 @@ export default function AdminWhatsAppPanel() {
   // ======= ENV (same-origin) =======
   const socketUrl = import.meta.env?.VITE_SOCKET_URL ?? "/socket.io";
   const apiBase = import.meta.env?.VITE_API_URL ?? "/api";
-  const BUSINESS_NUMBER = "9148330016";
+  const BUSINESS_NUMBER_LOCAL = "9148330016";
+  const BUSINESS_NUMBER = "+91" + BUSINESS_NUMBER_LOCAL;
 
   // ======= AUTH =======
   const [token, setToken] = useState(() => (localStorage.getItem("ADMIN_TOKEN") || "").trim());
@@ -49,6 +50,12 @@ export default function AdminWhatsAppPanel() {
   );
   useEffect(() => localStorage.setItem("autoHideActions", String(autoHideActions)), [autoHideActions]);
 
+  // NEW: auto-hide panel (persisted)
+  const [autoHidePanel, setAutoHidePanel] = useState(
+    () => (localStorage.getItem("autoHidePanel") ?? "true") === "true"
+  );
+  useEffect(() => localStorage.setItem("autoHidePanel", String(autoHidePanel)), [autoHidePanel]);
+
   // ======= DATA =======
   const [sessions, setSessions] = useState([]);
   const [sessionFilter, setSessionFilter] = useState("");
@@ -61,6 +68,9 @@ export default function AdminWhatsAppPanel() {
 
   const socketRef = useRef(null);
   const typingTimeout = useRef(null);
+
+  // auto-hide collapse timer ref
+  const hideTimer = useRef(null);
 
   // ======= ACTION DRAWER =======
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -83,6 +93,9 @@ export default function AdminWhatsAppPanel() {
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastTag, setBroadcastTag] = useState("ALL");
 
+  // debug: recent incoming messages to this business number
+  const [incomingLog, setIncomingLog] = useState([]);
+
   // ======= HELPERS =======
   const showToast = (msg) => {
     setToast(msg);
@@ -100,6 +113,8 @@ export default function AdminWhatsAppPanel() {
     status: m.status || (direction === "out" ? "sent" : "delivered"),
     direction: direction === "out" ? "out" : "in",
   });
+
+  const normalizePhone = (p) => (p || "").replace(/[^0-9]/g, "");
 
   const filteredSessions = useMemo(() => {
     const q = sessionFilter.toLowerCase();
@@ -128,12 +143,28 @@ export default function AdminWhatsAppPanel() {
     sock.on("sessions_snapshot", (list) => setSessions(list || []));
 
     sock.on("incoming_message", (m) => {
-      setMessages((p) => [...p, { ...m, direction: "in" }]);
+      // normalize incoming: ensure ts and to/from are standardized
+      const msg = {
+        id: m.id || `i_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+        from: m.from,
+        to: m.to,
+        text: m.text || m.message || "",
+        media: m.media || null,
+        ts: m.ts || Date.now(),
+        direction: "in",
+      };
+      setMessages((p) => [...p, msg]);
       setIsTyping(false);
+
+      // If this message is addressed to our business number, flash and log
+      if (normalizePhone(msg.to) === normalizePhone(BUSINESS_NUMBER) || normalizePhone(msg.to) === normalizePhone(BUSINESS_NUMBER_LOCAL)) {
+        showToast(`Incoming from ${msg.from}: "${(msg.text||'').slice(0,40)}"`);
+        // persist a small debug log in state
+        setIncomingLog((prev) => [{ ts: msg.ts, from: msg.from, txt: msg.text }, ...prev].slice(0,40));
+      }
     });
-    sock.on("outgoing_message", (m) =>
-      setMessages((p) => [...p, { ...m, direction: "out" }])
-    );
+
+    sock.on("outgoing_message", (m) => setMessages((p) => [...p, { ...m, direction: "out" }]));
 
     sock.on("session_messages", (list = []) => {
       setMessages(
@@ -312,7 +343,7 @@ export default function AdminWhatsAppPanel() {
         `${apiBase}/catalog/search?q=${encodeURIComponent(catalogQuery || "")}`,
         { headers: { ...authHeader } }
       );
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       setProducts(Array.isArray(j) ? j : j?.items || []);
     } catch {
@@ -374,6 +405,26 @@ export default function AdminWhatsAppPanel() {
     } catch {
       showToast("Broadcast failed");
     }
+  };
+
+  // ======= Auto-hide panel behavior (handle + timers) =======
+  useEffect(() => {
+    // collapse by default on wide screens to mimic HTML prototype
+    if (window.innerWidth > 900) {
+      setMenuOpen(false);
+    }
+    // cleanup on unmount
+    return () => clearTimeout(hideTimer.current);
+  }, []);
+
+  const handleLeftEnter = () => {
+    clearTimeout(hideTimer.current);
+    setMenuOpen(true);
+  };
+  const handleLeftLeave = () => {
+    if (!autoHidePanel) return;
+    clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setMenuOpen(false), 1100);
   };
 
   // ======= RENDER =======
@@ -509,7 +560,24 @@ export default function AdminWhatsAppPanel() {
 
   // 2) MAIN APP (post-login only)
   return (
-    <div className="min-h-screen h-screen grid grid-rows-[auto,1fr] kp-app">
+    <div className="min-h-screen h-screen grid kp-app relative" style={{ gridTemplateRows: "auto 1fr" }}>
+      {/* invisible left handle for auto-hide (small hit area) */}
+      <div
+        title={autoHidePanel ? "Hover to expand sessions" : "Auto-hide disabled"}
+        onMouseEnter={handleLeftEnter}
+        onMouseLeave={handleLeftLeave}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 18,
+          zIndex: 60,
+          background: "transparent",
+          cursor: autoHidePanel ? "pointer" : "default",
+        }}
+      />
+
       {/* Header */}
       <div className="kp-header flex items-center justify-between px-3 sm:px-4 py-2 border-b">
         <div className="flex items-center gap-2">
@@ -526,7 +594,28 @@ export default function AdminWhatsAppPanel() {
           </span>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <div className="opacity-70">WA: +{BUSINESS_NUMBER}</div>
+          <div className="opacity-70">WA: +{BUSINESS_NUMBER_LOCAL}</div>
+
+          {/* Toggle for auto-hide panel (new) */}
+          <label
+            className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
+            style={{ borderColor: `${GOLD}35`, background: WHITE }}
+            title="Auto-hide left sessions pane"
+          >
+            <Settings size={14} /> Auto-hide panel
+            <input
+              type="checkbox"
+              checked={autoHidePanel}
+              onChange={(e) => {
+                setAutoHidePanel(e.target.checked);
+                if (!e.target.checked) {
+                  // when disabling auto-hide, ensure menu is open
+                  setMenuOpen(true);
+                }
+              }}
+            />
+          </label>
+
           <label
             className="text-xs flex items-center gap-2 px-2 py-1 rounded-md border"
             style={{ borderColor: `${GOLD}35`, background: WHITE }}
@@ -539,6 +628,7 @@ export default function AdminWhatsAppPanel() {
               onChange={(e) => setAutoHideActions(e.target.checked)}
             />
           </label>
+
           <button
             onClick={doLogout}
             title="Logout"
@@ -555,6 +645,8 @@ export default function AdminWhatsAppPanel() {
         {/* Left: Sessions */}
         <div
           id="sessionPane"
+          onMouseEnter={handleLeftEnter}
+          onMouseLeave={handleLeftLeave}
           className={`kp-leftpane h-full min-h-0 overflow-hidden transition-all duration-200 ${
             menuOpen ? "col-span-12 sm:col-span-3" : "col-span-0 sm:col-span-0"
           }`}
@@ -651,8 +743,7 @@ export default function AdminWhatsAppPanel() {
                 <div key={m.id} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
                   <div className={`kp-bubble ${isOut ? "kp-bubble-out" : "kp-bubble-in"}`}>
                     <div className="kp-meta">
-                      {isOut ? "You" : m.from || "User"} •{" "}
-                      {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      {isOut ? "You" : m.from || "User"} • {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       {isOut && <StatusTick status={m.status} />}
                     </div>
                     {m.media ? (
@@ -704,7 +795,25 @@ export default function AdminWhatsAppPanel() {
         </div>
 
         {/* Right spacer (3rd pane) */}
-        <div className="kp-rightpane hidden sm:block sm:col-span-3 h-full min-h-0" />
+        <div className="kp-rightpane hidden sm:block sm:col-span-3 h-full min-h-0">
+          <div className="font-semibold mb-2">Business: {BUSINESS_NUMBER}</div>
+          <div className="text-xs opacity-70 mb-3">Live incoming → messages to this number (latest 40)</div>
+
+          <div className="overflow-auto max-h-[60vh] space-y-2">
+            {incomingLog.length === 0 && <div className="text-xs opacity-60">No incoming messages for this number yet.</div>}
+            {incomingLog.map((l, i) => (
+              <div key={i} className="p-2 rounded-md border" style={{ borderColor: `${GOLD}18`, background: "#fff" }}>
+                <div className="text-[11px] opacity-60">{new Date(l.ts).toLocaleString()}</div>
+                <div className="font-medium text-sm truncate">{l.from}</div>
+                <div className="text-sm truncate">{l.txt}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 text-[11px] opacity-60">
+            If this doesn't populate: check your server is emitting <code>incoming_message</code> and that the message's <code>to</code> equals <b>{BUSINESS_NUMBER}</b>.
+          </div>
+        </div>
       </div>
 
       {/* Mobile FAB */}
