@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kaapav — WhatsApp Admin (Static Shell)</title>
+  <style>
+    :root{--gold:#B88B2F;--gold-dark:#8A6320;--white:#FFFFFF;--paper:#FFF8F0;--text:#2B241E}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--paper);color:var(--text)}
+    /* Scoped reset for isolation */
+    .k-root{height:100vh;display:flex;flex-direction:column}
+    .k-header{height:64px;background:linear-gradient(180deg,var(--gold),var(--gold-dark));color:var(--white);display:flex;align-items:center;gap:12px;padding:0 16px;box-shadow:0 4px 18px rgba(0,0,0,0.08);}
+    .k-h-left{display:flex;align-items:center;gap:12px}
+    .k-menu-btn{background:transparent;border:none;color:var(--white);font-size:22px;cursor:pointer}
+    .k-brand{font-weight:700;font-size:18px}
+    .k-status{margin-left:auto;background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:999px;font-size:13px}
+
+    .k-body{flex:1;display:grid;grid-template-columns:320px 1fr 360px;min-height:0;gap:12px;padding:12px}
+
+    /* left sidebar */
+    .k-sidebar{background:var(--white);border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.03);transition:width .22s ease}
+    .k-sidebar.collapsed{width:54px}
+    .k-search{padding:12px;border-bottom:1px solid #f0e1c6;display:flex;gap:8px;align-items:center}
+    .k-search input{flex:1;padding:10px;border-radius:999px;border:1px solid #f0e1c6}
+    .k-sessions{overflow:auto;height:calc(100% - 68px)}
+    .k-session{display:flex;gap:10px;padding:12px;align-items:center;border-bottom:1px solid rgba(0,0,0,0.02);cursor:pointer}
+    .k-session:hover{background:#FFF8EB}
+    .k-avatar{width:44px;height:44;border-radius:8px;background:#FFF3DF;display:grid;place-items:center;font-weight:700}
+
+    /* center chat */
+    .k-chat{display:flex;flex-direction:column;border-radius:12px;overflow:hidden;box-shadow:0 8px 34px rgba(0,0,0,0.06);}
+    .k-chat-head{display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border-bottom:1px solid #f0e1c6}
+    .k-chat-body{flex:1;overflow:auto;padding:18px;background:linear-gradient(180deg,#fff,#FFF8F4)}
+    .k-bubble{display:inline-block;padding:10px 14px;border-radius:14px;max-width:72%;margin-bottom:8px}
+    .k-in{background:var(--white);border:1px solid #f0e1c6;color:var(--text)}
+    .k-out{background:linear-gradient(180deg,var(--gold),var(--gold-dark));color:var(--white);margin-left:auto}
+    .k-compose{display:flex;gap:8px;padding:12px;background:var(--white);border-top:1px solid #f0e1c6;align-items:center}
+    .k-compose textarea{flex:1;padding:10px;border-radius:999px;border:1px solid #f0e1c6;resize:none}
+    .k-compose button{background:var(--gold);color:var(--white);border:none;padding:10px 12px;border-radius:999px;cursor:pointer}
+
+    /* right log / actions */
+    .k-right{background:var(--white);border-radius:12px;padding:12px;box-shadow:0 8px 30px rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.03);overflow:auto}
+    .k-logitem{padding:10px;border-bottom:1px dashed #f0e1c6}
+
+    /* auto-hide hit area */
+    .k-left-hit{position:fixed;left:0;top:64px;width:18px;bottom:12px;z-index:40}
+
+    /* menu drawer (left full) */
+    .k-drawer{position:fixed;left:12px;top:76px;width:280px;background:var(--white);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.12);padding:12px;z-index:50;display:none}
+    .k-drawer.open{display:block}
+    .k-drawer .opt{padding:10px;border-radius:8px;cursor:pointer}
+    .k-drawer .opt:hover{background:#FFF8EC}
+
+    /* responsive */
+    @media (max-width:1000px){.k-body{grid-template-columns:1fr}.k-right{display:none}.k-sidebar{position:fixed;left:12px;top:76px;bottom:12px;z-index:60}}
+  </style>
+</head>
+<body>
+  <div class="k-root">
+    <header class="k-header">
+      <div class="k-h-left">
+        <button id="hamburger" class="k-menu-btn">☰</button>
+        <div class="k-brand">Kaapav Chats</div>
+      </div>
+      <div id="status" class="k-status">Offline</div>
+    </header>
+
+    <div class="k-body">
+      <aside id="sidebar" class="k-sidebar">
+        <div class="k-search"><input id="search" placeholder="Search or start new chat"/></div>
+        <div id="sessions" class="k-sessions"></div>
+      </aside>
+
+      <main class="k-chat">
+        <div class="k-chat-head"><div id="chatTitle">Select a conversation</div></div>
+        <div id="messages" class="k-chat-body"></div>
+        <div class="k-compose">
+          <input id="file" type="file" style="display:none" />
+          <label for="file" style="cursor:pointer">📎</label>
+          <textarea id="composer" rows="1" placeholder="Type a message" disabled></textarea>
+          <button id="send">➤</button>
+        </div>
+      </main>
+
+      <aside id="right" class="k-right">
+        <div style="font-weight:700;margin-bottom:8px">Live Log — +91 48330016</div>
+        <div id="log"></div>
+      </aside>
+
+      <div id="leftHit" class="k-left-hit" aria-hidden="true"></div>
+    </div>
+
+    <div id="drawer" class="k-drawer" role="menu" aria-hidden="true">
+      <div class="opt" data-action="chats">Chats</div>
+      <div class="opt" data-action="catalogue">Catalogue</div>
+      <div class="opt" data-action="pay">Pay</div>
+      <div class="opt" data-action="ship">Ship</div>
+      <div class="opt" data-action="broadcast">Broadcast</div>
+      <div class="opt" data-action="settings">Settings</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script>
+    (function(){
+      // Config
+      const BUSINESS_LOCAL = '9148330016';
+      const SOCKET_URL = window.__SOCKET_URL__ || (location.origin + '/socket.io');
+      const API_BASE = window.__API_BASE__ || (location.origin + '/api');
+      const ADMIN_TOKEN = localStorage.getItem('ADMIN_TOKEN') || '';
+
+      // UI refs
+      const sidebar = document.getElementById('sidebar');
+      const sessionsEl = document.getElementById('sessions');
+      const messagesEl = document.getElementById('messages');
+      const logEl = document.getElementById('log');
+      const composer = document.getElementById('composer');
+      const sendBtn = document.getElementById('send');
+      const statusEl = document.getElementById('status');
+      const drawer = document.getElementById('drawer');
+      const hamburger = document.getElementById('hamburger');
+      const leftHit = document.getElementById('leftHit');
+
+      // State
+      let socket = null;
+      let sessions = [];
+      let selected = null;
+      let hideTimer = null;
+
+      // Helpers
+      function showToast(t){ console.log('TOAST',t); }
+      function formatTime(ts){ const d=new Date(ts||Date.now()); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+      function renderSessions(){
+        sessionsEl.innerHTML='';
+        if(!sessions.length){ sessionsEl.innerHTML='<div style="padding:12px;color:#666">No sessions</div>'; return }
+        sessions.forEach(s=>{
+          const el=document.createElement('div'); el.className='k-session';
+          el.innerHTML=`<div class='k-avatar'>${(s.name||s.userId||'U').slice(0,1).toUpperCase()}</div><div style='flex:1;min-width:0'><div style='font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>${s.name||s.userId}</div><div style='font-size:12px;color:#8a8175;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'>${s.lastMessage||''}</div></div>`;
+          el.addEventListener('click',()=>selectSession(s.userId));
+          sessionsEl.appendChild(el);
+        })
+      }
+
+      function appendMessage(m){
+        const wrap=document.createElement('div');
+        const isOut = (m.direction==='out' || m.from==='admin');
+        const bubble=document.createElement('div'); bubble.className = 'k-bubble ' + (isOut? 'k-out':'k-in');
+        const meta=document.createElement('div'); meta.style.fontSize='12px'; meta.style.color=isOut? 'rgba(255,255,255,0.9)':'#8a8175'; meta.style.marginBottom='6px'; meta.textContent = (isOut? 'You' : (m.from||'User')) + ' • ' + formatTime(m.ts);
+        const body=document.createElement('div'); body.textContent = m.text||m.message||'';
+        bubble.appendChild(meta); bubble.appendChild(body);
+        wrap.appendChild(bubble); messagesEl.appendChild(wrap); messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+
+      function addLog(item){ const d=document.createElement('div'); d.className='k-logitem'; d.innerHTML = `<div style="font-size:12px;color:#888">${formatTime(item.ts)}</div><div style="font-weight:600">${item.from}</div><div style="margin-top:6px">${item.txt}</div>`; logEl.prepend(d); if(logEl.children.length>80) logEl.removeChild(logEl.lastChild); }
+
+      function selectSession(id){ selected=id; messagesEl.innerHTML=''; composer.disabled=false; sendBtn.disabled=false; document.getElementById('chatTitle').textContent = id; 
+        // fetch history
+        fetch(`${API_BASE}/messages/history?user=${encodeURIComponent(id)}`,{headers: ADMIN_TOKEN?{Authorization:'Bearer '+ADMIN_TOKEN}:{} }).then(r=>r.json()).then(list=>{ (list||[]).forEach(m=>appendMessage(m)); messagesEl.scrollTop = messagesEl.scrollHeight }).catch(()=>{});
+        // auto-hide like WA
+        if(window.innerWidth>900) sidebar.classList.add('collapsed');
+      }
+
+      // auto-hide logic
+      leftHit.addEventListener('mouseenter', ()=>{ clearTimeout(hideTimer); sidebar.classList.remove('collapsed'); });
+      sidebar.addEventListener('mouseleave', ()=>{ clearTimeout(hideTimer); hideTimer=setTimeout(()=>sidebar.classList.add('collapsed'),900); });
+
+      // drawer menu
+      hamburger.addEventListener('click',()=>{ drawer.classList.toggle('open'); });
+      drawer.addEventListener('click',(e)=>{
+        const act = e.target.getAttribute('data-action'); if(!act) return;
+        drawer.classList.remove('open');
+        if(act==='chats'){ sidebar.classList.remove('collapsed'); }
+        if(act==='catalogue'){ openAction('catalogue'); }
+        if(act==='pay'){ openAction('pay'); }
+        if(act==='ship'){ openAction('ship'); }
+        if(act==='broadcast'){ openAction('broadcast'); }
+      });
+
+      function openAction(name){ // open right action panel (simple log for static)
+        addLog({ts:Date.now(), from:'SYSTEM', txt:`Open action: ${name}`});
+        // In integration phase, this will open the full action UI
+      }
+
+      // send
+      sendBtn.addEventListener('click', ()=>{ const text = composer.value.trim(); if(!text || !selected) return; const payload = { to: selected, text }; appendMessage({ ...payload, from:'admin', direction:'out', ts:Date.now() }); composer.value=''; try{ socket && socket.connected && socket.emit('admin_send_message', payload); }catch(e){} fetch(`${API_BASE}/messages/send`,{method:'POST',headers:{'Content-Type':'application/json', ...(ADMIN_TOKEN?{Authorization:'Bearer '+ADMIN_TOKEN}:{})},body:JSON.stringify(payload)}).catch(()=>{}); });
+
+      // quick seed
+      sessions = [{userId:'919812345678',name:'Sujata',lastMessage:'Is the bracelet in stock?'},{userId:'919700111222',name:'Rahul',lastMessage:'Order status?'},{userId:BUSINESS_LOCAL,name:'Kaapav Admin',lastMessage:'System ready'}]; renderSessions();
+
+      // socket
+      try{
+        socket = io(SOCKET_URL, { auth: { token: ADMIN_TOKEN }, transports:['websocket','polling'] });
+        socket.on('connect', ()=>{ statusEl.textContent='Online'; statusEl.style.background='rgba(255,255,255,0.12)'; showToast('Socket connected'); });
+        socket.on('disconnect', ()=>{ statusEl.textContent='Offline'; statusEl.style.background=''; showToast('Socket disconnected'); });
+        socket.on('sessions_snapshot', list=>{ sessions = Array.isArray(list)?list:sessions; renderSessions(); });
+        socket.on('session_messages', list=>{ messagesEl.innerHTML=''; (list||[]).forEach(m=>appendMessage(m)); });
+        socket.on('incoming_message', m=>{ const msg = { id: m.id||('i_'+Date.now()), from:m.from, to:m.to, text:m.text||m.message||'', ts:m.ts||Date.now(), direction:'in' }; appendMessage(msg); if((msg.to||'').replace(/\D/g,'')===BUSINESS_LOCAL){ showToast(`Incoming from ${msg.from}: "${(msg.text||'').slice(0,40)}"`); addLog({ts:msg.ts,from:msg.from,txt:msg.text}); } });
+        socket.on('outgoing_message', m=>{ appendMessage({ ...m, direction:'out' }); });
+
+        // request snapshot
+        socket.emit && socket.emit('request_sessions_snapshot');
+      }catch(e){ console.warn('socket fail',e); }
+
+      // expose test helper
+      window._testIncoming = function(from,text){ const m={from,to:BUSINESS_LOCAL,text,ts:Date.now()}; appendMessage({ ...m, direction:'in' }); addLog({ts:m.ts,from:m.from,txt:m.text}); };
+
+    })();
+  </script>
+</body>
+</html>
