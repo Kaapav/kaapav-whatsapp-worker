@@ -117,9 +117,7 @@ app.post('/api/auth/register', (req, res) => {
   if (!username || !password) {
     if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
     return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
-  }
- 
-
+  });
 
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
