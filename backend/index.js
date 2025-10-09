@@ -867,8 +867,7 @@ setInterval(async () => {
     console.warn("⚠️ Redis keepalive failed:", err.message);
   }
 }, 24 * 60 * 60 * 1000); // once per day
-
-
+}
 // ====== Graceful shutdown ======
 function shutdown(sig) {
   console.log(`\n${sig} received — shutting down...`);
