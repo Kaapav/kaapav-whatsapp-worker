@@ -901,4 +901,4 @@ function shutdown(sig) {
 }
 
 ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
-}
+})
