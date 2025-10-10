@@ -4,13 +4,20 @@
 @tailwind utilities;
 
 /* ===== Base ===== */
-:root{
+:root {
+  --wa-primary: var(--kp-gold);
+  --wa-bg: var(--kp-paper);
+  --wa-chat-bg: var(--kp-gold-soft);
+  --wa-text: var(--kp-ink);
+  --wa-border: var(--kp-line);
+
   --kp-gold:#C4952F;      /* Kaapav gold */
   --kp-gold-soft:#FFF8EB; /* pale gold surface */
   --kp-paper:#FFFFFF;     /* paper */
   --kp-ink:#1F1C17;       /* charcoal text */
   --kp-line:rgba(196,149,47,.18);
 }
+
 
 html,body,#root{height:100%}
 body{
