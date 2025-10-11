@@ -1,12 +1,17 @@
+// main.tsx — one-time seed + render-guards for your clone UI
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
 import "./index.css";
-import { startSession, WA } from "./waBridge";
+import "./socket"; // ensures socket auth starts
 
-// ensure session boot
-startSession("9148330016");
+// Seed localStorage so any JSON.parse('token') guards don’t blow up:
+localStorage.setItem("token", JSON.stringify({
+  id: 1, name: "admin", role: "admin", token: "KAAPAV_ADMIN_123"
+}));
 
-// Optional: simple poll to re-render your clone (if it’s not Redux/Signals)
-setInterval(() => {
-  // trigger any lightweight state update your clone uses,
-  // or dispatch a custom event your components listen to.
-  window.dispatchEvent(new Event("wa:update"));
-}, 500);
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
