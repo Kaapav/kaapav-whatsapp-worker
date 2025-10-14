@@ -83,25 +83,19 @@ const app = express();
 app.use(bodyParser.json({ limit: '2mb' }));
 app.use(cors());
 
-/**
- * ✅ 1. Redirect middleware (before routes)
- */
-app.use((req, res, next) => {
-  if (req.hostname === 'kaapav.is-a.dev') {
-    return res.redirect(301, 'https://www.crm.kaapav.com' + req.url);
-  }
-  next();
-});
+
 
 /**
  * ✅ 2. Health/Self-check
  */
-app.get('/', (req, res) => {
-  res.send('✅ Kaapav WhatsApp Worker is alive!');
-});
-
-app.get('/test/selfcheck', async (req, res) => {
-  res.status(200).json({ ok: true, status: 'alive', timestamp: Date.now() });
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    env: process.env.NODE_ENV || 'development',
+    port: process.env.PORT || 5555,
+    ts: Date.now(),
+    pid: process.pid
+  });
 });
 
 // Feature stubs
@@ -115,9 +109,10 @@ app.post('/api/messages/upload',   (req,res)=> res.json({ ok:true, id:`out_${Dat
 app.post('/api/auth/register', (req, res) => {
   const { username, password, role } = req.body || {};
   if (!username || !password) {
-    if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
-    return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
+   return res.status(400).json({ error: 'Missing creds' });
   }
+  return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
+});
 
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
