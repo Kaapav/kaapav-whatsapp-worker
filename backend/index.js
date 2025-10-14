@@ -352,7 +352,7 @@ async function cacheMessage(userId, msg) {
     console.warn("⚠️ Redis cacheMessage failed:", e.message);
   }
 }
-}
+
 async function pushRedisMessage(userId, obj) {
   if (!redis) return;
   try {
