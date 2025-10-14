@@ -47,7 +47,7 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOK
 
 // ====== ENV ======
 const PORT = process.env.PORT || 5555;
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_PROD_ADMIN';
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123';
 const {
   MONGO_URI,
   REDIS_URI,
@@ -122,7 +122,11 @@ app.post('/api/auth/login', (req, res) => {
 
 // ====== HTTP + Socket.IO ======
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  path: '/socket.io',
+  cors: { origin: ['https://crm.kaapav.com','https://www.crm.kaapav.com'], methods: ['GET','POST'] }
+});
+
 
 // ====== Mongo Models (optional but recommended) ======
 let SessionModel = null;
@@ -277,11 +281,23 @@ async function loadSession(userId) {
 }
 
 async function upsertSession(userId, patch = {}) {
+  if (!userId) throw new Error('upsertSession: missing userId');
+
   const now = new Date();
-  const existing = await loadSession(userId);
+
+  // safe load (handle null/undefined)
+  const existing = (await loadSession(userId)) || {};
+
+  // merge shallow for meta/counters
   const mergedMeta = { ...(existing.meta || {}), ...(patch.meta || {}) };
   const mergedCounters = { ...(existing.counters || {}), ...(patch.counters || {}) };
-  const lastTenMessages = patch.lastTenMessages || existing.lastTenMessages || [];
+
+  // handle lastTenMessages (cap 10)
+  const cap = 10;
+  const baseMsgs = Array.isArray(existing.lastTenMessages) ? existing.lastTenMessages : [];
+  const addedMsgs = Array.isArray(patch.lastTenMessages) ? patch.lastTenMessages : [];
+  const lastTenMessages = [...baseMsgs, ...addedMsgs].slice(-cap);
+
   const newObj = {
     ...existing,
     ...patch,
@@ -292,26 +308,37 @@ async function upsertSession(userId, patch = {}) {
     userId
   };
 
-  if (SessionModel) {
-  try {
-    await SessionModel.updateOne({ userId }, { $set: newObj }, { upsert: true });
-  } catch (e) {
-    console.warn('⚠️ session upsert mongo error:', e.message);
+  // persist to Mongo (non-fatal)
+  if (typeof SessionModel !== 'undefined' && SessionModel) {
+    try {
+      await SessionModel.updateOne(
+        { userId },
+        { $set: newObj },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn('⚠️ session upsert mongo error:', e.message);
+    }
   }
-}
 
-// Always update memory
-memSessions[userId] = newObj;
-
-// Try Redis too
-if (redis) {
+  // optional Redis cache (non-fatal)
   try {
-    await redis.set(`session:${userId}`, JSON.stringify(newObj), { ex: 3600 });
+    if (typeof redis !== 'undefined' && redis) {
+      await redis.set(`session:${userId}`, JSON.stringify(newObj), { ex: 3600 });
+    }
   } catch (e) {
     console.warn('⚠️ redis set session failed:', e.message || e);
   }
-}
 
+  // optional in-memory cache map (if you use one)
+  try {
+    if (typeof memSessions !== 'undefined') {
+      memSessions[userId] = newObj;
+    }
+  } catch (_) {}
+
+  return newObj;
+}
 
 /// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
 // ========== Redis helpers ==========
