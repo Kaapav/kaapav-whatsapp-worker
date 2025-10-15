@@ -88,16 +88,32 @@ app.use(cors());
 /**
  * ✅ 2. Health/Self-check
  */
-app.get('/api/health', (req, res) => {
+const fetch = global.fetch || ((...a)=>import('node-fetch').then(m=>m.default(...a)));
+async function probeWhatsApp(){
+  if (!WHATSAPP_ACCESS_TOKEN || !WA_PHONE_ID) return { status:'missing' };
+  try {
+    // lightweight call: read phone number resource
+    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}`;
+    const r = await fetch(url, { headers:{ Authorization:`Bearer ${WA_TOKEN}` }});
+    if (r.status === 200) return { status:'ok' };
+    if (r.status >= 500)  return { status:'degraded', code:r.status };
+    return { status:'degraded', code:r.status, body: await r.text().catch(()=> '') };
+  } catch (e) {
+    return { status:'degraded', err: e.message };
+  }
+}
+
+app.get('/api/health', async (req,res)=>{
+  const wa = await probeWhatsApp();
   res.json({
     ok: true,
     env: process.env.NODE_ENV || 'development',
-    port: process.env.PORT || 5555,
+    port: String(process.env.PORT || 5555),
     ts: Date.now(),
-    pid: process.pid
+    pid: process.pid,
+    whatsapp: wa.status, // 'ok' | 'degraded' | 'missing'
   });
 });
-
 // Feature stubs
 app.post('/api/razorpay/link',     (req,res)=> res.json({ ok:true }));
 app.get ('/api/catalog/search',    (req,res)=> res.json({ items: [] }));
@@ -186,6 +202,18 @@ try {
   }
 } catch (err) {
   console.error('❌ Error while calling setSocket:', err?.stack || err);
+}
+
+// ===== Presence Broadcaster (Online/Offline/Degraded) =====
+function broadcastPresence(state, note) {
+  try {
+    if (global.io) {
+      global.io.to('admins').emit('presence', { state, note, ts: Date.now() });
+      console.log(`📡 Presence: ${state}${note ? ' • ' + note : ''}`);
+    }
+  } catch (e) {
+    console.warn('presence broadcast fail:', e.message);
+  }
 }
 
 // ====== In-memory fallback (when Redis missing) ======
@@ -767,6 +795,54 @@ io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() 
   }
 });
 
+app.get('/webhook/wa', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === WA_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+/**
+ * Meta → delivery/read callbacks
+ * We emit socket 'message_status' with { metaId, status }, so UI updates ticks.
+ * Map WhatsApp message IDs to our metaId (set below in sendWhatsAppText).
+ */
+const _waIdToMeta = new Map(); // waMessageId -> metaId
+
+app.post('/webhook/wa', express.json({ type: '*/*' }), async (req, res) => {
+  try {
+    const body = req.body;
+    // Standard WhatsApp structure:
+    // body.entry[].changes[].value.statuses[] OR messages[]
+    const entries = body?.entry || [];
+    for (const e of entries) {
+      const changes = e?.changes || [];
+      for (const c of changes) {
+        const v = c?.value || {};
+        const statuses = v.statuses || [];
+        for (const s of statuses) {
+          const waId = s.id;                // WhatsApp message id
+          const status = s.status;          // 'sent' | 'delivered' | 'read' | 'failed' | 'deleted'
+          const metaId = _waIdToMeta.get(waId); // our optimistic id (if known)
+
+          // broadcast ticks → UI
+          try { global.io?.to('admins').emit('message_status', { metaId: metaId || waId, status }); } catch {}
+          // presence flavor
+          if (status === 'read' || status === 'delivered' || status === 'sent') {
+            try { global.io?.to('admins').emit('presence', { state:'online', note:'WA', ts:Date.now() }); } catch {}
+          }
+        }
+      }
+    }
+    res.sendStatus(200);
+  } catch (e) {
+    console.warn('wa webhook error:', e.message);
+    res.sendStatus(200);
+  }
+});
 // ====== Admin endpoints ======
 function requireAdminToken(req, res, next) {
   if (!ADMIN_TOKEN) return next();
@@ -846,10 +922,183 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// ====== Start server ======
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// ====== KAAPAV UI BACKEND (DEDUPED + ENV-ALIGNED) ============================
+// Auth guard
+function requireAdminToken(req, res, next) {
+  const h = req.headers || {};
+  const tok = (h.authorization || '').replace(/^Bearer\s+/, '') || h['x-admin-token'];
+  if (tok === (process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123')) return next();
+  return res.status(401).json({ ok: false, err: 'unauthorized' });
+}
+
+// In-memory cache (safe defaults; swap with Mongo when ready)
+const _memory = { sessions: {}, notes: {} };
+const normPhone = s => (s || '').toString().replace(/\D/g, ''); // digits only
+
+// ---- WhatsApp Cloud API config (uses YOUR env names) ----
+const GRAPH_API_VERSION       = process.env.GRAPH_API_VERSION || 'v17.0';
+const WA_TOKEN                = process.env.WHATSAPP_ACCESS_TOKEN || '';
+const WA_PHONE_ID             = process.env.WHATSAPP_PHONE_NUMBER_ID || ''; // 745230991999571
+const WA_BUSINESS_NUMBER      = normPhone(process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016'); // default for tests
+const WA_API_BASE             = WA_PHONE_ID ? `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}/messages` : '';
+
+// ---- Single, canonical sender (NO duplicates anywhere else) ----
+async function sendWhatsAppText(to, text) {
+  if (!WA_ACCESS_TOKEN || !WA_PHONE_NUMBER_ID) {
+    console.warn('⚠️ WhatsApp creds missing; simulate send', { to, text });
+    broadcastPresence('degraded', 'Missing creds');
+    return { simulated: true };
+  }
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'text',
+    text: { preview_url: false, body: text }
+  };
+  try {
+    const res = await fetch(WA_API_BASE, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${WA_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errtxt = await res.text().catch(()=> '');
+      broadcastPresence('degraded', 'WA API error ' + res.status);
+      throw new Error(`WA send failed: ${res.status} ${res.statusText} ${errtxt}`);
+    }
+
+    broadcastPresence('online');
+    return res.json().catch(()=> ({}));
+  } catch (e) {
+    broadcastPresence('degraded', 'WA send fail');
+    throw e;
+  }
+}
+
+
+// ---- Sessions snapshot (left panel) ----
+app.get('/api/sessions', requireAdminToken, async (req, res) => {
+  res.json(Object.values(_memory.sessions));
 });
+
+// ---- Message history (center thread) ----
+app.get('/api/messages/history', requireAdminToken, async (req, res) => {
+  const id = normPhone(req.query.user || '');
+  const hist = (_memory.sessions[id]?.messages) || [];
+  res.json(hist.slice(-200));
+});
+
+// ---- Send message (composer + programmatic) ----
+app.post('/api/messages/send', requireAdminToken, async (req, res) => {
+  try {
+    const to   = normPhone(req.body?.to || '');
+    const text = (req.body?.text || '').toString();
+    if (!to || !text) return res.status(400).json({ ok: false, err: 'to+text required' });
+
+    const api = await sendWhatsAppText(to, text);
+
+    // update memory & broadcast (optional)
+    const msg = { from: 'admin', to, text, direction: 'out', status: 'sent', ts: Date.now() };
+    _memory.sessions[to] = _memory.sessions[to] || { userId: to, name: to, lastMessage: '', messages: [] };
+    _memory.sessions[to].messages.push(msg);
+    _memory.sessions[to].lastMessage = text;
+
+    if (global.io) {
+      global.io.to('admins').emit('outgoing_message', msg);
+      global.io.to(to).emit('message', msg);
+    }
+
+    res.json({ ok: true, to, text, api });
+  } catch (e) {
+    res.status(500).json({ ok: false, err: e.message || String(e) });
+  }
+});
+
+// ---- One-tap test route (defaults to your business number if "to" empty) ----
+app.post('/api/test/sendMain', requireAdminToken, async (req, res) => {
+  try {
+    const to   = normPhone(req.body?.to || WA_BUSINESS_NUMBER);
+    const text = (req.body?.text || 'Kaapav go-live ✅').toString();
+    if (!to) return res.status(400).json({ ok: false, err: 'missing to' });
+
+    const api = await sendWhatsAppText(to, text);
+
+    const outObj = { to, text, direction: 'out', ts: new Date(), meta: { api } };
+    if (global.io) global.io.to('admins').emit('message_out', outObj);
+
+    // optional persistence hooks (no-ops if undefined)
+    if (typeof cacheMessage === 'function') await cacheMessage(to, outObj);
+    if (typeof MessageModel !== 'undefined' && MessageModel) {
+      try { await MessageModel.create(outObj); } catch (e) { console.warn('msg save fail:', e.message); }
+    }
+
+    res.json({ ok: true, to, text, api });
+  } catch (e) {
+    res.status(500).json({ ok: false, err: e.message || String(e) });
+  }
+});
+
+// ---- Contacts / notes / ops (right panel) ----
+app.post('/api/contacts/save', requireAdminToken, async (req, res) => {
+  const phone = normPhone(req.body?.phone || '');
+  const name  = (req.body?.name || '').toString() || phone;
+  if (!phone) return res.status(400).json({ ok: false, err: 'missing phone' });
+  _memory.sessions[phone] = _memory.sessions[phone] || { userId: phone, name: phone, messages: [], lastMessage: '' };
+  _memory.sessions[phone].name = name;
+  res.json({ ok: true });
+});
+
+app.post('/api/contacts/note', requireAdminToken, async (req, res) => {
+  const user = normPhone(req.body?.user || '');
+  const note = (req.body?.note || '').toString();
+  if (!user) return res.status(400).json({ ok: false, err: 'missing user' });
+  _memory.notes[user] = note;
+  res.json({ ok: true });
+});
+
+// Stubs you can wire later
+app.post('/api/catalogue/send', requireAdminToken, async (req, res) => {
+  res.json({ ok: true, info: 'catalogue stub accepted' });
+});
+
+app.post('/api/pay/link', requireAdminToken, async (req, res) => {
+  const amount = Number(req.body?.amount || 0);
+  if (amount <= 0) return res.status(400).json({ ok: false, err: 'amount>0 required' });
+  const link = `https://pay.kaapav.com/i/${Date.now().toString(36)}?amt=${amount}`;
+  res.json({ ok: true, link });
+});
+
+app.get('/api/ship/status', requireAdminToken, async (req, res) => {
+  const awb = (req.query?.awb || '').toString();
+  res.json({ ok: true, awb, status: 'In transit', updated: new Date().toISOString() });
+});
+
+// Basic admin login (returns ADMIN_TOKEN so UI can store it)
+app.post('/api/admin/login', async (req, res) => {
+  res.json({ ok: true, token: process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123' });
+});
+// ====== END KAAPAV UI BACKEND =================================================
+
+// ====== Start server ======
+// ===== SINGLETON LISTENER (one source of truth) =====
+const PORT = Number(process.env.PORT || process.env.WORKER_PORT || 5555);
+if (require.main === module) {
+  if (!server.listening) {
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} already in use. Another instance is running.`);
+        process.exit(1);
+      }
+      console.error('❌ Server error:', err);
+      process.exit(1);
+    });
+    server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
+  }
+}
 
 // ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
