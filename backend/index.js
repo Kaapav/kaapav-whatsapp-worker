@@ -807,54 +807,121 @@ io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() 
   }
 });
 
+// ==========================================================
+// ✅ WHATSAPP CLOUD API WEBHOOK HANDLER (PRODUCTION READY)
+// ==========================================================
 app.get('/webhook/wa', (req, res) => {
+  const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN || 'kaapav_verify_123';
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
-  if (mode === 'subscribe' && token === WA_VERIFY_TOKEN) {
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('✅ Meta Webhook verified');
     return res.status(200).send(challenge);
   }
+  console.warn('❌ Webhook verify failed');
   return res.sendStatus(403);
 });
 
-/**
- * Meta → delivery/read callbacks
- * We emit socket 'message_status' with { metaId, status }, so UI updates ticks.
- * Map WhatsApp message IDs to our metaId (set below in sendWhatsAppText).
- */
-const _waIdToMeta = new Map(); // waMessageId -> metaId
+const _waIdToMeta = new Map(); // WA msg id → local meta id
 
 app.post('/webhook/wa', express.json({ type: '*/*' }), async (req, res) => {
   try {
     const body = req.body;
-    // Standard WhatsApp structure:
-    // body.entry[].changes[].value.statuses[] OR messages[]
     const entries = body?.entry || [];
     for (const e of entries) {
       const changes = e?.changes || [];
       for (const c of changes) {
         const v = c?.value || {};
+
+        // 🔹 Handle inbound messages
+        if (Array.isArray(v.messages)) {
+          for (const m of v.messages) {
+            const from = m.from;
+            const text = m.text?.body || '';
+            const wamid = m.id;
+            const ts = Number(m.timestamp) * 1000;
+
+            console.log(`📩 Incoming WA msg from ${from}: ${text}`);
+
+            // Optional Mongo insert
+            try {
+              if (MessageModel) {
+                await MessageModel.create({
+                  from,
+                  text,
+                  wamid,
+                  ts,
+                  direction: 'inbound',
+                });
+              }
+            } catch (err) {
+              console.warn('mongo insert fail:', err.message);
+            }
+
+            // Broadcast to UI
+            try {
+              global.io?.to('admins').emit('message', {
+                from,
+                text,
+                wamid,
+                ts,
+                direction: 'inbound',
+              });
+            } catch {}
+          }
+        }
+
+        // 🔹 Handle status updates
         const statuses = v.statuses || [];
         for (const s of statuses) {
-          const waId = s.id;                // WhatsApp message id
-          const status = s.status;          // 'sent' | 'delivered' | 'read' | 'failed' | 'deleted'
-          const metaId = _waIdToMeta.get(waId); // our optimistic id (if known)
+          const waId = s.id;
+          const status = s.status;
+          const metaId = _waIdToMeta.get(waId);
 
-          // broadcast ticks → UI
-          try { global.io?.to('admins').emit('message_status', { metaId: metaId || waId, status }); } catch {}
-          // presence flavor
-          if (status === 'read' || status === 'delivered' || status === 'sent') {
-            try { global.io?.to('admins').emit('presence', { state:'online', note:'WA', ts:Date.now() }); } catch {}
+          console.log(`📬 Status ${status} for ${waId}`);
+
+          // Emit status tick updates
+          try {
+            global.io?.to('admins').emit('message_status', {
+              metaId: metaId || waId,
+              status,
+            });
+          } catch {}
+
+          // Optional Mongo update
+          try {
+            if (MessageModel) {
+              await MessageModel.updateOne(
+                { wamid: waId },
+                { $set: { status, updatedAt: new Date() } }
+              );
+            }
+          } catch (err) {
+            console.warn('mongo update fail:', err.message);
+          }
+
+          // Emit presence for activity
+          if (['sent', 'delivered', 'read'].includes(status)) {
+            try {
+              global.io?.to('admins').emit('presence', {
+                state: 'online',
+                note: 'WA',
+                ts: Date.now(),
+              });
+            } catch {}
           }
         }
       }
     }
-    res.sendStatus(200);
-  } catch (e) {
-    console.warn('wa webhook error:', e.message);
-    res.sendStatus(200);
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error('❌ webhook error:', err.message);
+    return res.sendStatus(200);
   }
 });
+
 // ====== Admin endpoints ======
 function requireAdminToken(req, res, next) {
   const h = req.headers || {};
