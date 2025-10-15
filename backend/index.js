@@ -83,36 +83,49 @@ app.use(bodyParser.json({ limit: '2mb' }));
 app.use(cors());
 
 
+// keep probe optional, never block health
+app.get('/api/health', async (_req, res) => {
+  const payload = {
+    ok: true,
+    service: 'wa-worker',
+    uptime: process.uptime(),
+    ts: Date.now(),
+  };
 
-/**
- * ✅ 2. Health/Self-check
- */
-const fetch = global.fetch || ((...a)=>import('node-fetch').then(m=>m.default(...a)));
-async function probeWhatsApp(){
-  if (!WHATSAPP_ACCESS_TOKEN || !WA_PHONE_ID) return { status:'missing' };
+  // Optional WA probe only if env exists
   try {
-    // lightweight call: read phone number resource
-    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}`;
-    const r = await fetch(url, { headers:{ Authorization:`Bearer ${WA_TOKEN}` }});
-    if (r.status === 200) return { status:'ok' };
-    if (r.status >= 500)  return { status:'degraded', code:r.status };
-    return { status:'degraded', code:r.status, body: await r.text().catch(()=> '') };
+    if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+      const wa = await probeWhatsApp();       // your existing function
+      payload.whatsapp = { ok: true, ...wa };
+    } else {
+      payload.whatsapp = { ok: false, reason: 'missing_env' };
+    }
   } catch (e) {
-    return { status:'degraded', err: e.message };
+    payload.whatsapp = { ok: false, reason: 'probe_failed' };
+  }
+
+  res.status(200).json(payload);
+});
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} not set`);
+  return v;
+}
+async function probeWhatsApp() {
+  if (!WA_TOKEN || !WA_PHONE_ID) return { status: 'missing' };
+  try {
+    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${WA_TOKEN}` } });
+    if (r.status === 200) return { status: 'ok' };
+    if (r.status >= 500)  return { status: 'degraded', code: r.status };
+    return { status: 'degraded', code: r.status, body: await r.text().catch(() => '') };
+  } catch (e) {
+    return { status: 'degraded', err: e.message };
   }
 }
 
-app.get('/api/health', async (req,res)=>{
-  const wa = await probeWhatsApp();
-  res.json({
-    ok: true,
-    env: process.env.NODE_ENV || 'development',
-    port: String(process.env.PORT || 5555),
-    ts: Date.now(),
-    pid: process.pid,
-    whatsapp: wa.status, // 'ok' | 'degraded' | 'missing'
-  });
-});
+
 // Feature stubs
 app.post('/api/razorpay/link',     (req,res)=> res.json({ ok:true }));
 app.get ('/api/catalog/search',    (req,res)=> res.json({ items: [] }));
@@ -1081,7 +1094,6 @@ app.post('/api/admin/login', async (req, res) => {
 
 // ====== Start server ======
 // ===== SINGLETON LISTENER (one source of truth) =====
-
 if (require.main === module) {
   if (!server.listening) {
     server.on('error', (err) => {
@@ -1135,7 +1147,7 @@ setInterval(async () => {
     console.warn("⚠️ Redis keepalive failed:", err.message);
   }
 }, 24 * 60 * 60 * 1000); // once per day
-  
+
 // ====== Graceful shutdown ======
 function shutdown(sig) {
   console.log(`\n${sig} received — shutting down...`);
