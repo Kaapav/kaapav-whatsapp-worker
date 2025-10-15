@@ -80,13 +80,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # --- WhatsApp webhook (if used) ---
-    location /webhook/wa {
-        proxy_pass http://127.0.0.1:5555/webhook/wa;
-        proxy_set_header Host $host;
-        proxy_http_version 1.1;
-    }
-
     # --- ACME challenge (keep if using certbot renew) ---
     location /.well-known/acme-challenge/ {
         root /var/www/crm.kaapav.com;
