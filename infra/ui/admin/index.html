@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Kaapav — WhatsApp Admin</title>
+<style>
+:root{
+  --gold:#C4952F; --gold-2:#B0841F; --gold-dark:#8E6A1D;
+  --paper:#FFF8EB; --white:#FFFFFF; --ink:#1F1C17; --muted:#8a8175;
+  --line:rgba(196,149,47,.18); --bg:#ffffff; --bg2:#FFFBF3; --shadow:0 10px 30px rgba(0,0,0,.08);
+  --blue:#1d7ef2; --red:#b00020; --success:#17a24b;
+}
+*{box-sizing:border-box} html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--paper);color:var(--ink);overflow:hidden}
+.btn{border:none;border-radius:999px;padding:10px 14px;background:var(--gold);color:#fff;cursor:pointer;transition:.15s transform}
+.btn:active{transform:scale(.98)} .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}
+input,textarea,select{padding:10px;border-radius:10px;border:1px solid var(--line);width:100%;font-family:inherit;background:#fff}
+small.hint{color:var(--muted);font-size:12px}
+
+.app{height:100vh;display:flex;flex-direction:column}
+.top{height:60px;background:linear-gradient(180deg,var(--gold),var(--gold-dark));color:#fff;display:flex;align-items:center;gap:12px;padding:0 12px;box-shadow:var(--shadow)}
+.brand{font-weight:800}
+.top .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.status{font-size:12px;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:999px}
+.hamb{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff}
+.themeToggle{border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff}
+
+.body{flex:1;display:grid;grid-template-columns:320px 1fr 380px;gap:12px;padding:12px;min-height:0}
+.left,.chat,.right{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.left{display:flex;flex-direction:column}
+.search{padding:12px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.list{flex:1;overflow:auto;background:var(--bg)}
+.item{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid rgba(0,0,0,.04);cursor:pointer}
+.item:hover{background:#FFF7E6}
+.avatar{width:42px;height:42px;border-radius:8px;background:#FFF3DF;display:grid;place-items:center;font-weight:700}
+.label{min-width:0;flex:1}
+.label .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.label .last{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badges{display:flex;gap:6px;margin-left:auto;align-items:center}
+.badge{font-size:12px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);background:#fff}
+
+.chat{display:flex;flex-direction:column;background:var(--bg)}
+.chat-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);min-height:56px}
+.chat-head .title{font-weight:800}
+.chat-head .typing{font-size:12px;color:var(--muted)}
+.back{display:none}
+.chat-body{flex:1;overflow:auto;padding:18px;background:linear-gradient(180deg,#fff,var(--bg2))}
+.unread{display:flex;justify-content:center;margin:10px 0}
+.unread span{font-size:12px;padding:4px 10px;border:1px dashed var(--line);border-radius:999px;background:#fff;color:var(--muted)}
+.bwrap{margin-bottom:10px;display:flex}
+.bubble{display:inline-block;max-width:76%;padding:10px 12px;border-radius:14px;word-wrap:break-word;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.in .bubble{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.out{justify-content:flex-end}
+.out .bubble{background:linear-gradient(180deg,var(--gold),var(--gold-2));color:white}
+.meta{font-size:11px;color:#ffffffcc;margin-bottom:4px;display:flex;align-items:center}
+.meta.in{color:var(--muted)}
+.ticks{font-size:12px;margin-left:6px;opacity:.95;display:inline-flex;gap:2px}
+.tick{display:inline-block;min-width:12px;text-align:center}
+.tick.grey{color:#7a7a7a} .tick.blue{color:var(--blue)} .tick.hidden{display:none}
+.react{margin-left:8px;opacity:.75;cursor:pointer}
+.react .e{margin:0 2px}
+.compose{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line);align-items:center;background:#fff}
+.compose textarea{flex:1;resize:none;max-height:140px;min-height:38px}
+.fab{display:none}
+
+.right{padding:12px;overflow:auto}
+.tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;flex-wrap:wrap}
+.tab{padding:6px 10px;border:1px solid var(--line);border-radius:999px;cursor:pointer;background:#fff}
+.tab.active{background:var(--gold);color:#fff;border-color:transparent}
+.panel{display:none} .panel.active{display:block}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.rows{display:flex;gap:8px;flex-wrap:wrap}
+.divider{height:1px;background:var(--line);margin:10px 0}
+
+/* Drawer (hamburger menu) */
+.drawer{position:fixed;top:0;left:0;height:100vh;width:320px;max-width:86vw;background:#fff;border-right:1px solid var(--line);box-shadow:4px 0 30px rgba(0,0,0,.08);transform:translateX(-100%);transition:transform .25s ease;z-index:10000;display:flex;flex-direction:column}
+.drawer.open{transform:translateX(0)}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
+.drawer-body{padding:10px;overflow:auto}
+.menu-item{display:block;width:100%;text-align:left;margin:8px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;cursor:pointer}
+
+/* SafeBoot overlay */
+#kp-overlay{position:fixed;inset:0;background:linear-gradient(180deg,#fff,#FFFBF3);display:none;align-items:center;justify-content:center;z-index:99999}
+#kp-overlay.show{display:flex}
+.card{background:#fff;border-radius:16px;padding:18px;border:1px solid var(--line);min-width:320px;max-width:92vw;box-shadow:var(--shadow)}
+
+/* Mobile */
+@media (max-width:1100px){
+  .body{grid-template-columns:1fr}
+  .left,.right{display:none}
+  .back{display:inline-block}
+  .fab{display:grid;place-items:center;position:fixed;right:16px;bottom:16px;background:var(--gold);color:#fff;width:54px;height:54px;border-radius:50%;box-shadow:0 12px 20px rgba(0,0,0,.12);cursor:pointer}
+}
+.mobile-list .left{display:flex}
+.mobile-list .chat{display:none}
+.mobile-chat .left{display:none}
+.mobile-chat .chat{display:flex}
+
+/* Dark (Midnight Gold) */
+.dark body,.dark .left,.dark .right,.dark .chat,.dark .drawer{background:#12100d;color:#eae7e2}
+.dark .list,.dark .chat-body{background:#16130f}
+.dark .item:hover{background:#1c1812}
+.dark input,.dark textarea,.dark .panel,.dark .menu-item{background:#1d1a15;color:#eae7e2;border-color:#3a3225}
+.dark .tab{background:#1d1a15;color:#eae7e2}
+.dark .tab.active{background:var(--gold);color:#fff}
+.dark .meta.in{color:#aea69b}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <button id="hamburger" class="pill hamb">☰</button>
+    <div class="brand">Kaapav WhatsApp Dashboard</div>
+    <div class="right">
+      <button id="themeToggle" class="pill themeToggle">🌙</button>
+      <span id="connLamp" class="status">Offline</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- LEFT: chats -->
+    <aside class="left">
+      <div class="search">
+        <input id="search" placeholder="Search / start chat (enter)"/>
+      </div>
+      <div id="sessions" class="list"></div>
+    </aside>
+
+    <!-- CENTER: chat -->
+    <section class="chat">
+      <div class="chat-head">
+        <button class="pill back" id="backBtn">←</button>
+        <div class="title" id="chatTitle">Select a conversation</div>
+        <div style="flex:1"></div>
+        <div class="typing" id="typing"></div>
+      </div>
+      <div id="messages" class="chat-body"></div>
+      <div class="compose">
+        <textarea id="composer" rows="1" placeholder="Type a message" disabled></textarea>
+        <button id="send" class="btn" disabled>Send</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: actions (for desktop quick access) -->
+    <aside class="right">
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="catalogue">Catalogue</div>
+        <div class="tab" data-tab="pay">Pay</div>
+        <div class="tab" data-tab="ship">Ship</div>
+        <div class="tab" data-tab="broadcast">Broadcast</div>
+        <div class="tab" data-tab="notes">Notes</div>
+        <div class="tab" data-tab="settings">Settings</div>
+      </div>
+
+      <div id="catalogue" class="panel active">
+        <div class="field"><label>Recipients</label><input id="catRecipients" placeholder="+9198.., +9177.. (blank=current chat)"></div>
+        <div class="field"><label>Image</label><input id="catImage" type="file" accept="image/*"></div>
+        <div class="field"><label>Caption</label><textarea id="catCaption" rows="3" placeholder="22K Gold Necklace – ₹1,24,500 …"></textarea></div>
+        <button id="catSend" class="btn">Send Catalogue</button>
+      </div>
+
+      <div id="pay" class="panel">
+        <div class="field"><label>Recipient</label><input id="payTo" placeholder="+91… or select chat"></div>
+        <div class="rows">
+          <div class="field" style="flex:1"><label>Amount (₹)</label><input id="payAmt" type="number" min="1" step="1" placeholder="5000"></div>
+          <div class="field" style="flex:2"><label>Note</label><input id="payNote" placeholder="Advance for order #KJ1023"></div>
+        </div>
+        <button id="paySend" class="btn">Send Payment Link</button>
+      </div>
+
+      <div id="ship" class="panel">
+        <div class="field"><label>AWB</label><input id="awb" placeholder="1234 5678 9012"></div>
+        <div class="field"><label>Recipients (optional)</label><input id="shipRecipients" placeholder="+91… (blank = current chat)"></div>
+        <button id="shipSend" class="btn">Send Shipment</button>
+        <div id="shipPreview" class="muted" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+      </div>
+
+      <div id="broadcast" class="panel">
+        <div class="field"><label>Recipients</label><input id="bcRecipients" placeholder="+9198.. +9177.. +91…"></div>
+        <div class="field"><label>Message</label><textarea id="bcMsg" rows="3" placeholder="Festive offer: 10% making off…"></textarea></div>
+        <button id="bcSend" class="btn">Broadcast</button>
+        <small class="hint">Paced ~8–12/sec with retries</small>
+      </div>
+
+      <div id="notes" class="panel">
+        <div class="field"><label>Notes for chat</label><textarea id="notesBox" rows="6" placeholder="Private notes…"></textarea></div>
+        <button id="saveNote" class="pill">Save note</button>
+      </div>
+
+      <div id="settings" class="panel">
+        <div class="field"><label>Business Number</label><input id="bizNumber" value="+91 9148330016"></div>
+        <div class="field"><label>API Base</label><input id="apiBase"><small class="hint">Defaults: <code>origin + /api</code></small></div>
+        <div class="field"><label>Socket Host</label><input id="sockHost"><small class="hint">Defaults: <code>window.location.origin</code></small></div>
+        <div class="divider"></div>
+        <button id="logoutBtn" class="pill">Logout</button>
+      </div>
+    </aside>
+  </div>
+
+  <button class="fab" id="fabNew">＋</button>
+</div>
+
+<!-- Drawer -->
+<div id="drawer" class="drawer">
+  <div class="drawer-head">
+    <div style="font-weight:800">Kaapav Menu</div>
+    <button id="drawerClose" class="pill">✕</button>
+  </div>
+  <div class="drawer-body">
+    <button class="menu-item" data-panel="catalogue">📸 Catalogue</button>
+    <button class="menu-item" data-panel="pay">💳 Pay</button>
+    <button class="menu-item" data-panel="ship">📦 Ship</button>
+    <button class="menu-item" data-panel="broadcast">📣 Broadcast</button>
+    <button class="menu-item" data-panel="notes">📝 Notes</button>
+    <button class="menu-item" data-panel="settings">⚙️ Settings</button>
+    <hr class="divider">
+    <button id="saveContactBtn2" class="menu-item">💾 Save contact</button>
+    <button id="newChatBtn2" class="menu-item">＋ New chat</button>
+    <button id="logoutBtn2" class="menu-item">Logout</button>
+  </div>
+</div>
+
+<!-- SafeBoot overlay -->
+<div id="kp-overlay">
+  <div class="card">
+    <div style="font-weight:800;font-size:18px;margin-bottom:6px">Kaapav Admin — Safe Mode</div>
+    <div id="kp-status" style="color:var(--muted);margin-bottom:10px">Checking…</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="ovRetry">Retry</button>
+      <button class="pill" id="ovReset">Reset token</button>
+      <button class="pill" id="ovLogin">Open login</button>
+    </div>
+  </div>
+</div>
+
+<!-- Login modal -->
+<div id="login" class="login">
+  <div class="card">
+    <div style="font-weight:800;margin-bottom:8px">Admin Login</div>
+    <div class="field"><label>Username</label><input id="lgUser" value="admin"></div>
+    <div class="field"><label>Password</label><input id="lgPass" type="password" placeholder="••••••••"></div>
+    <div id="lgErr" class="danger" style="min-height:18px"></div>
+    <div class="rows">
+      <button id="lgSubmit" class="btn">Sign in</button>
+      <button id="lgUseLocal" class="pill">Use saved token</button>
+    </div>
+  </div>
+</div>
+
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js" crossorigin="anonymous"></script>
+<script>
+(function(){
+  // ===== Config =====
+  const DEFAULT_API = (window.__API_BASE__ || (location.origin + '/api'));
+  const DEFAULT_SOCKET_HOST = (window.__SOCKET_HOST__ || location.origin);
+  const DEFAULT_SOCKET_PATH = (window.__SOCKET_PATH__ || '/socket.io/');
+  const TOKKEY = 'ADMIN_TOKEN';
+  const THEMEKEY = 'KP_THEME';
+
+  // ===== State =====
+  let API_BASE = localStorage.getItem('API_BASE') || DEFAULT_API;
+  let SOCKET_HOST = localStorage.getItem('SOCKET_HOST') || DEFAULT_SOCKET_HOST;
+  let SOCKET_PATH = localStorage.getItem('SOCKET_PATH') || DEFAULT_SOCKET_PATH;
+  let ADMIN_TOKEN = localStorage.getItem(TOKKEY) || '';
+  let socket = null;
+
+  let sessions = []; // list of { userId,name,lastMessage,unread,pin }
+  let selected = null; // phone/userId
+  let msgIndex = {}; // metaId -> domId
+  let unreadMarkerPlaced = {}; // chatId -> boolean
+
+  // ===== DOM =====
+  const $ = id => document.getElementById(id);
+  const connLamp = $('connLamp'), sessionsEl = $('sessions'), composer = $('composer'), sendBtn = $('send'),
+        messagesEl = $('messages'), chatTitle = $('chatTitle'), typingEl = $('typing'),
+        login = $('login'), drawer=$('drawer');
+
+  // ===== Theme =====
+  function applyTheme(t){
+    if(t==='dark'){ document.documentElement.classList.add('dark'); }
+    else { document.documentElement.classList.remove('dark'); }
+    localStorage.setItem(THEMEKEY, t);
+  }
+  applyTheme(localStorage.getItem(THEMEKEY)||'light');
+  $('themeToggle').onclick = ()=>{
+    const now = (localStorage.getItem(THEMEKEY)||'light')==='light' ? 'dark' : 'light';
+    applyTheme(now);
+    $('themeToggle').textContent = (now==='dark'?'☀️':'🌙');
+  };
+  $('themeToggle').textContent = ((localStorage.getItem(THEMEKEY)||'light')==='dark'?'☀️':'🌙');
+
+  // ===== Helpers =====
+  const headers = () => ADMIN_TOKEN ? { 'Authorization':'Bearer '+ADMIN_TOKEN } : {};
+  const json = r => r.ok ? r.json() : r.text().then(t=>{throw new Error(t||('HTTP '+r.status))});
+  const fmtTime = ts => new Date(ts||Date.now()).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const cleanPhone = s => (s||'').toString().replace(/\D/g,'');
+  const splitRecipients = val => (val||'').split(/[,\s]+/).map(cleanPhone).filter(Boolean);
+  function setLamp(txt,bg){ connLamp.textContent=txt; if(bg) connLamp.style.background=bg; }
+
+  // ===== SafeBoot (no white screen ever) =====
+  const ov = $('kp-overlay'), ovStatus = $('kp-status');
+  function ovShow(msg){ ov.classList.add('show'); ovStatus.textContent = msg||'Checking…'; }
+  function ovHide(){ ov.classList.remove('show'); }
+  async function health(){ try{ const r=await fetch(API_BASE+'/health',{cache:'no-store'}); if(!r.ok) throw 0; return await r.json(); } catch { return null; } }
+  async function guardedBoot(force){
+    ovShow('Checking API…');
+    let ok = await health();
+    if(!ok){
+      ovStatus.textContent='API unreachable. Fix backend/nginx. (Stays safe — no crash)';
+      return;
+    }
+    // token sanity
+    if(ADMIN_TOKEN){
+      ovStatus.textContent='Validating token…';
+      try{
+        const r = await fetch(API_BASE+'/sessions',{headers:headers(),cache:'no-store'});
+        if(r.status===401) throw new Error('401');
+        await r.json();
+      }catch(e){
+        ADMIN_TOKEN=''; localStorage.removeItem(TOKKEY);
+        ovStatus.textContent='Token invalid. Please login.';
+        login.style.display='grid';
+        ovHide(); return;
+      }
+    }
+    ovHide();
+    if(!ADMIN_TOKEN) login.style.display='grid';
+    bootSocket();
+    refreshSessions();
+  }
+  $('ovRetry').onclick = ()=>guardedBoot(true);
+  $('ovReset').onclick = ()=>{ localStorage.removeItem(TOKKEY); ADMIN_TOKEN=''; ovStatus.textContent='Token cleared. Open login.'; };
+  $('ovLogin').onclick = ()=>{ login.style.display='grid'; };
+
+  // ===== Drawer (hamburger) =====
+  const shade = document.createElement('div'); shade.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.2);display:none;z-index:9999'; document.body.appendChild(shade);
+  function openDrawer(){ drawer.classList.add('open'); shade.style.display='block'; }
+  function closeDrawer(){ drawer.classList.remove('open'); shade.style.display='none'; }
+  $('hamburger').onclick = openDrawer; $('drawerClose').onclick = closeDrawer; shade.onclick = closeDrawer;
+  document.querySelectorAll('.menu-item[data-panel]').forEach(btn=>{
+    btn.onclick = ()=>{ switchPanel(btn.getAttribute('data-panel')); closeDrawer(); };
+  });
+  $('saveContactBtn2').onclick = ()=> $('saveContactBtn').click();
+  $('newChatBtn2').onclick = ()=> newChat();
+  $('logoutBtn2').onclick = ()=> doLogout();
+
+  // --- Connection Lamp Controller ---
+const LAMP = document.getElementById('connLamp');
+
+function lamp(state, note){
+  const m = { online:['Online','rgba(255,255,255,.12)'],
+              degraded:['Degraded','orange'],
+              offline:['Offline',''],
+              error:['Socket error','crimson'] }[state] || ['Unknown',''];
+  LAMP.textContent = m[0] + (note ? ` • ${note}` : '');
+  LAMP.style.background = m[1];
+}
+
+// socket hooks (already there; just ensure they call lamp)
+if (typeof socket !== 'undefined' && socket) {
+  socket.on('connect',      ()=> lamp('online'));
+  socket.on('disconnect',   ()=> lamp('offline'));
+  socket.on('connect_error',e=> lamp('error'));
+}
+
+// REST heartbeat (fallback if socket dead, or show WA status)
+async function heartbeat(){
+  try{
+    const r = await fetch(API_BASE + '/health', { cache:'no-store' });
+    if(!r.ok) throw 0;
+    const h = await r.json();
+    // if backend answers but WA is down, mark degraded
+    if (h && h.ok) {
+      if (h.whatsapp === 'ok') lamp('online');
+      else if (h.whatsapp === 'degraded') lamp('degraded','WA');
+      else lamp('degraded','API');
+    } else lamp('offline');
+  }catch{ lamp('offline'); }
+}
+// poll every 20s as safety net
+setInterval(heartbeat, 20000);
+// run once on boot (after guardedBoot)
+setTimeout(heartbeat, 1000);
+
+ // ===== Tabs (desktop right panel) =====
+  function switchPanel(id){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelector(`.tab[data-tab="${id}"]`)?.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    $(id)?.classList.add('active');
+  }
+  $('tabs').addEventListener('click',e=>{
+    const t=e.target.closest('.tab'); if(!t) return; switchPanel(t.dataset.tab);
+  });
+
+  // ===== Sessions (left panel) =====
+  function renderSessions(){
+    sessionsEl.innerHTML='';
+    if(!sessions.length){ sessionsEl.innerHTML='<div style="padding:12px;color:var(--muted)">No sessions</div>'; return; }
+    sessions.forEach(s=>{
+      const id = s.userId || s.id || s.phone;
+      const el = document.createElement('div'); el.className='item';
+      el.innerHTML = `
+        <div class="avatar">${(s.name||id||'U').toString().slice(0,1).toUpperCase()}</div>
+        <div class="label">
+          <div class="name">${escapeHtml(s.name||id)}</div>
+          <div class="last">${escapeHtml(s.lastMessage||'')}</div>
+        </div>
+        <div class="badges">
+          ${s.pin?'<span class="badge" title="Pinned">📌</span>':''}
+          ${s.unread?`<span class="badge" title="${s.unread} unread">${s.unread}</span>`:''}
+        </div>`;
+      el.addEventListener('click',()=>selectSessionMobileAware(id));
+      sessionsEl.appendChild(el);
+    });
+  }
+  function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  async function refreshSessions(){
+    try{
+      const r = await fetch(API_BASE+'/sessions',{headers:headers()}).then(json);
+      if(Array.isArray(r)){ sessions=r; renderSessions(); }
+    }catch{}
+  }
+
+  // ===== Chat rendering =====
+  function unreadDividerOnce(id){
+    if(unreadMarkerPlaced[id]) return;
+    const div=document.createElement('div'); div.className='unread'; div.innerHTML='<span>Unread messages</span>'; messagesEl.appendChild(div);
+    unreadMarkerPlaced[id]=true;
+  }
+  function appendMessage(m){
+    const wrap = document.createElement('div'); wrap.className='bwrap '+(isOut(m)?'out':'in');
+    const bub = document.createElement('div'); bub.className='bubble';
+    const meta = document.createElement('div'); meta.className='meta '+(isOut(m)?'':'in');
+    const ticks = document.createElement('span'); ticks.className='ticks';
+    const id = m.metaId || m.id || ('m_'+Date.now()+Math.random().toString(36).slice(2));
+    ticks.dataset.id = id;
+    ticks.innerHTML = `<span class="tick t1 grey">✓</span><span class="tick t2 blue hidden">✓</span>`;
+    msgIndex[id]=id;
+
+    const name = isOut(m)?'You':(m.from||'User');
+    meta.innerHTML = `${escapeHtml(name)} • <span class="time">${fmtTime(m.ts)}</span>`;
+    if(isOut(m)) meta.appendChild(ticks);
+
+    // reactions (scaffold)
+    const react = document.createElement('span'); react.className='react'; react.innerHTML='<span class="e">❤️</span><span class="e">👍</span><span class="e">🔥</span><span class="e">🙏</span>';
+    react.title='React'; react.onclick = (e)=>{ e.stopPropagation(); /* TODO: persist reaction */ };
+
+    const body = document.createElement('div'); body.textContent = m.text || m.message || '';
+    bub.appendChild(meta); bub.appendChild(body); if(isOut(m)) bub.appendChild(react);
+    wrap.appendChild(bub); messagesEl.appendChild(wrap);
+
+    // ticks initial
+    applyTickState(id, (m.status||'queued'));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+  function isOut(m){ return (m.direction==='out' || m.from==='admin' || m.from==='You' || m.sender==='me'); }
+
+  // ===== Ticks =====
+  function applyTickState(domId, status){
+    const el = document.querySelector(`.ticks[data-id="${domId}"]`); if(!el) return;
+    const t1 = el.querySelector('.t1'), t2 = el.querySelector('.t2');
+    t1.classList.remove('grey','blue','hidden'); t2.classList.add('hidden');
+    switch((status||'').toLowerCase()){
+      case 'queued': case 'sent': t1.classList.add('grey'); break; // single grey
+      case 'delivered': t1.classList.add('blue'); break; // single blue
+      case 'read': t1.classList.add('blue'); t2.classList.remove('hidden'); break; // double blue
+      default: t1.classList.add('grey'); // safe default
+    }
+  }
+
+  // ===== Select chat =====
+  async function selectSession(id){
+    selected = id; chatTitle.textContent = id; messagesEl.innerHTML=''; composer.disabled=false; sendBtn.disabled=false;
+    unreadMarkerPlaced[id]=false;
+    $('notesBox').value = localStorage.getItem('note:'+id) || '';
+    // history
+    try{
+      const list = await fetch(API_BASE + '/messages/history?user=' + encodeURIComponent(id), { headers: headers() }).then(json);
+      (Array.isArray(list)?list:[]).forEach(appendMessage);
+      // place unread divider if backend tells unread count (optional)
+      const s = sessions.find(x=>(x.userId||x.id||x.phone)===id);
+      if(s && s.unread>0) unreadDividerOnce(id);
+    }catch{}
+  }
+  function selectSessionMobileAware(id){ selectSession(id); if(window.innerWidth<1100) setMode('chat'); }
+
+  // ===== Compose & send (optimistic + retry) =====
+  function optimisticSend(to, text){
+    const metaId = 'kp_'+Date.now().toString(36)+Math.random().toString(36).slice(2);
+    const m = { id:metaId, metaId, from:'You', to, text, ts:Date.now(), direction:'out', status:'queued' };
+    appendMessage(m);
+    // queue post
+    const payload = { to, text };
+    let tries=0, delay=800;
+    (async function attempt(){
+      tries++;
+      try{
+        const r = await fetch(API_BASE + '/messages/send', {
+          method:'POST', headers:{'Content-Type':'application/json', ...headers()}, body: JSON.stringify(payload)
+        }).then(json);
+        // mark sent (backend may echo metaId; if different, still map)
+        applyTickState(metaId, 'sent');
+      }catch(e){
+        if(tries<5){ setTimeout(attempt, delay); delay=Math.min(delay*1.8, 6000); }
+        else{ // fail UI hint
+          const el = document.querySelector(`.ticks[data-id="${metaId}"]`);
+          if(el){ el.innerHTML = '<span class="tick grey">⚠️</span>'; }
+        }
+      }
+    })();
+  }
+
+  $('send').onclick = ()=> {
+    const text = (composer.value||'').trim(); if(!text) return;
+    const to = selected || splitRecipients($('payTo').value)[0]; if(!to) return alert('Select a conversation or fill recipient');
+    optimisticSend(to, text); composer.value='';
+    try{ if(socket?.connected) socket.emit('typing_stop',{to}); }catch{}
+  };
+  $('composer').addEventListener('input', ()=>{
+    if(socket && socket.connected && selected){ try{ socket.emit('typing', { to:selected }); }catch{} }
+  });
+
+  // New chat (button in drawer & FAB)
+  function newChat(){
+    const num = prompt('Enter number (+91… or digits only)');
+    const n = cleanPhone(num||''); if(!n) return;
+    if(!sessions.find(s=>(s.userId||s.id||s.phone)===n)){ sessions.unshift({ userId:n, name:n }); renderSessions(); }
+    selectSessionMobileAware(n);
+  }
+  $('fabNew').onclick = ()=> newChat();
+
+  // Search enter = jump/start chat
+  $('search').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      const n = splitRecipients(e.target.value)[0]; if(!n) return;
+      if(!sessions.find(s=>(s.userId||s.id||s.phone)===n)){ sessions.unshift({ userId:n, name:n }); renderSessions(); }
+      selectSessionMobileAware(n);
+    }
+  });
+
+  // Save contact
+  function saveContact(){
+    if(!selected) return alert('Open a chat first');
+    const name = prompt('Name for '+selected) || selected;
+    fetch(API_BASE + '/contacts/save', { method:'POST', headers:{'Content-Type':'application/json', ...headers()}, body: JSON.stringify({ phone:selected, name }) })
+      .catch(()=>{});
+    const s = sessions.find(s=>(s.userId||s.id||s.phone)===selected); if(s){ s.name=name; renderSessions(); }
+    alert('Saved');
+  }
+  $('saveContactBtn')?.addEventListener('click', saveContact);
+
+  // Notes
+  $('saveNote').onclick = ()=>{
+    if(!selected) return alert('Open a chat first');
+    const val = $('notesBox').value||'';
+    localStorage.setItem('note:'+selected, val);
+    fetch(API_BASE + '/contacts/note', { method:'POST', headers:{'Content-Type':'application/json', ...headers()}, body: JSON.stringify({ user:selected, note:val }) }).catch(()=>{});
+    alert('Saved');
+  };
+
+  // Catalogue
+  $('catSend').onclick = async ()=>{
+    const recips = splitRecipients($('catRecipients').value);
+    const file = $('catImage').files[0];
+    const caption = $('catCaption').value || '';
+    const list = recips.length? recips : [selected].filter(Boolean);
+    if(!file) return alert('Pick an image'); if(!list.length) return alert('Select chat or add recipients');
+    const form = new FormData(); form.append('image', file); form.append('caption', caption); form.append('recipients', JSON.stringify(list));
+    try{ await fetch(API_BASE + '/catalogue/send', { method:'POST', headers: headers(), body: form }); alert('Catalogue sent'); }
+    catch(e){ alert('Catalogue failed'); }
+  };
+
+  // Pay
+  $('paySend').onclick = async ()=>{
+    const to = splitRecipients($('payTo').value)[0] || selected;
+    const amount = Number($('payAmt').value || 0);
+    const note = $('payNote').value || '';
+    if(!to || amount<=0) return alert('Recipient + valid amount required');
+    try{
+      const res = await fetch(API_BASE + '/pay/link', {
+        method:'POST', headers:{'Content-Type':'application/json', ...headers()}, body: JSON.stringify({ to, amount, note })
+      }).then(json);
+      const link = res && (res.link || res.url || res.payment_url || 'payment link');
+      optimisticSend(to, `Payment link ₹${amount}: ${link}`);
+      alert('Payment link sent');
+    }catch(e){ alert('Payment failed'); }
+  };
+
+  // Ship
+  $('shipSend').onclick = async ()=>{
+    const awb = ($('awb').value||'').trim(); if(!awb) return alert('Enter AWB');
+    const recips = splitRecipients($('shipRecipients').value);
+    let info = null;
+    try{ info = await fetch(API_BASE + '/ship/status?awb=' + encodeURIComponent(awb), { headers: headers() }).then(json); }catch{}
+    const msg = info && info.status ? `Shipment ${awb}: ${info.status} • ${info.updated||''}` : `Shipment ${awb}: status fetched`;
+    const list = recips.length? recips : [selected].filter(Boolean);
+    if(!list.length) return alert('Select chat or add recipients');
+    list.forEach(num => optimisticSend(num, msg));
+    $('shipPreview').textContent = msg;
+  };
+
+  // Broadcast (paced with retries)
+  $('bcSend').onclick = ()=>{
+    const recips = Array.from(new Set(splitRecipients($('bcRecipients').value)));
+    const text = ($('bcMsg').value||'').trim();
+    if(!recips.length || !text) return alert('Recipients + message required');
+    let i=0; const pace=90; // ~11/sec
+    (function tick(){
+      if(i>=recips.length){ alert('Broadcast queued'); return; }
+      optimisticSend(recips[i++], text);
+      setTimeout(tick, pace);
+    })();
+  };
+
+  // ===== Socket =====
+  function bootSocket(){
+    try{
+      socket = io(SOCKET_HOST, { path: SOCKET_PATH, transports:['websocket','polling'], auth:{ token: ADMIN_TOKEN } });
+    }catch(e){ console.warn('socket init fail',e); return; }
+
+    socket.on('connect', ()=>{ setLamp('Online','rgba(255,255,255,.12)'); refreshSessions(); });
+    socket.on('disconnect', ()=> setLamp('Offline',''));
+    socket.on('connect_error', (err)=> setLamp('Socket error','crimson'));
+
+    // ===== Presence live updates from backend =====
+if (typeof socket !== 'undefined' && socket) {
+  socket.on('presence', p => {
+    if (!p) return;
+    // states you emit: 'online' | 'offline' | 'degraded'
+    lamp(p.state, p.note || '');
+  });
+}
+
+
+    // typing
+    ['typing','user_typing','chat_typing'].forEach(ev=> socket.on(ev, p=>{
+      if(!p) return; if(selected && (p.user===selected || p.from===selected)) setTyping('typing…');
+    }));
+    function setTyping(txt){
+      typingEl.textContent = txt||''; if(txt) setTimeout(()=>typingEl.textContent='', 2000);
+    }
+
+    // status updates (from backend webhook bridge)
+    socket.on('message_status', ({ metaId, status })=>{
+      const id = msgIndex[metaId] || metaId; applyTickState(id, status);
+    });
+
+    // incoming
+    const addIn = p => appendMessage({ from:p.from||'user', text:(p.text||p.message||''), ts:p.ts||Date.now(), direction:'in', status:p.status, metaId:p.metaId||p.id });
+    ['incoming_message','new_message','message','message.in','message_received']
+      .forEach(ev => socket.on(ev, payload => { Array.isArray(payload)? payload.forEach(addIn): addIn(payload); }));
+
+    // outgoing echo (if backend emits)
+    socket.on('outgoing_message', p => {
+      const addOut= q => appendMessage({ from:'You', text:(q.text||q.message||''), ts:q.ts||Date.now(), direction:'out', status:q.status||'sent', metaId:q.metaId||q.id });
+      Array.isArray(p)? p.forEach(addOut): addOut(p);
+    });
+
+    // snapshot of sessions
+    socket.on('sessions_snapshot', list => { if(Array.isArray(list)) { sessions = list; renderSessions(); } });
+
+    // request sessions from various names
+    ['admin_request_sessions','request_sessions','request_sessions_snapshot','get_sessions'].forEach(ev=>{ try{ socket.emit(ev); }catch{} });
+  }
+
+  // ===== Login =====
+  function needLogin(){ if(!ADMIN_TOKEN) login.style.display='grid'; }
+  function doLogout(){ localStorage.removeItem(TOKKEY); ADMIN_TOKEN=''; location.reload(); }
+  $('logoutBtn').onclick = doLogout;
+
+  $('lgSubmit').onclick = async ()=>{
+    const username = ($('lgUser').value||'').trim();
+    const password = ($('lgPass').value||'').trim();
+    $('lgErr').textContent='';
+    try{
+      const res = await fetch(API_BASE + '/admin/login', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username, password })
+      }).then(json);
+      if(!res || !res.token) throw new Error('No token');
+      ADMIN_TOKEN = res.token; localStorage.setItem(TOKKEY, ADMIN_TOKEN);
+      login.style.display='none'; bootSocket(); refreshSessions();
+    }catch(e){ $('lgErr').textContent='Login failed'; }
+  };
+  $('lgUseLocal').onclick = ()=>{ const t=localStorage.getItem(TOKKEY)||''; if(t){ ADMIN_TOKEN=t; login.style.display='none'; bootSocket(); refreshSessions(); } else $('lgErr').textContent='No saved token'; };
+
+  // ===== Settings bindings =====
+  $('apiBase').value = API_BASE; $('sockHost').value = SOCKET_HOST;
+  $('apiBase').onchange = ()=>{ API_BASE = $('apiBase').value || DEFAULT_API; localStorage.setItem('API_BASE', API_BASE); };
+  $('sockHost').onchange = ()=>{ SOCKET_HOST = $('sockHost').value || DEFAULT_SOCKET_HOST; localStorage.setItem('SOCKET_HOST', SOCKET_HOST); if(socket){ try{socket.disconnect()}catch{} } bootSocket(); };
+
+  // ===== Mobile mode =====
+  const root = document.body;
+  function setMode(mode){ root.classList.remove('mobile-list','mobile-chat'); root.classList.add(mode==='chat'?'mobile-chat':'mobile-list'); }
+  $('backBtn').onclick = ()=> setMode('list');
+  window.addEventListener('resize', ()=>{ if(window.innerWidth>=1100) root.classList.remove('mobile-list','mobile-chat'); });
+
+  // ===== Seed view for empty state =====
+  (function seed(){
+    sessions = [
+      { userId:'919812345678', name:'Sujata', lastMessage:'Is the bracelet in stock?', unread:1 },
+      { userId:'919700111222', name:'Rahul',  lastMessage:'Order status?' },
+      { userId:'9148330016',   name:'Kaapav Admin', lastMessage:'System ready' }
+    ];
+    renderSessions();
+  })();
+
+  // ===== Boot =====
+  setMode(window.innerWidth<1100?'list':'chat');
+  needLogin();
+  guardedBoot(false);
+
+})();
+</script>
+</body>
+</html>
