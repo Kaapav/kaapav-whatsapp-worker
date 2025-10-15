@@ -1,9 +1,9 @@
 module.exports = {
   apps: [
     {
-      name: "backend",
+      name: 'wa-worker',
       script: "index.js",
-      cwd: "./backend",   // runs from backend folder
+      cwd: '/home/ubuntu/kaapav-bot/kaapav-whatsapp-worker/backend',   // runs from backend folder
       instances: 1,
       autorestart: true,
       watch: false,
