@@ -56,10 +56,12 @@ server {
    } 
     # --- API (your backend on localhost:5555) ---
     location /api {
-        proxy_pass http://127.0.0.1:5555;
-        proxy_set_header Host $host;
-        proxy_http_version 1.1;
-        proxy_redirect off;
+    proxy_pass http://127.0.0.1:5555;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 
         # pass client IP & proto
         proxy_set_header X-Real-IP $remote_addr;
@@ -70,12 +72,10 @@ server {
     # --- Socket.IO (WebSocket upgrades) ---
     location /socket.io/ {
         proxy_pass http://127.0.0.1:5555/socket.io/;
-
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "Upgrade";
         proxy_set_header Host $host;
-
         proxy_read_timeout 75s;
         proxy_send_timeout 75s;
 
