@@ -51,7 +51,6 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123';
 const {
   MONGO_URI,
   REDIS_URI,
-  WA_PHONE_ID,
 
   // Optional integrations
   SHEETS_ENABLED,            // "1" to enable
