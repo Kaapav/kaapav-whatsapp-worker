@@ -49,6 +49,11 @@ server {
         add_header Cache-Control "public, max-age=60";
     }
 
+    location /webhook/wa {
+    proxy_pass http://127.0.0.1:5555/webhook/wa;
+    proxy_set_header Host $host;
+    proxy_http_version 1.1;
+   } 
     # --- API (your backend on localhost:5555) ---
     location /api {
         proxy_pass http://127.0.0.1:5555;
