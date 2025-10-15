@@ -1092,10 +1092,12 @@ if (require.main === module) {
       console.error('❌ Server error:', err);
       process.exit(1);
     });
-    if (require.main === module) {
-  server.listen(PORT_NUM, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT_NUM}`));
- }
-}
+
+    // ✅ Only one listener, clean, consistent
+    server.listen(PORT, '0.0.0.0', () =>
+      console.log(`🚀 Server running on port ${PORT}`)
+    );
+  }
 }
 // ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
