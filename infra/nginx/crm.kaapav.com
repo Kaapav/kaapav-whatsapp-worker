@@ -1,5 +1,6 @@
 # ================================
 # crm.kaapav.com - Nginx vhost
+# /etc/nginx/sites-enabled/crm.kaapav.com
 # ================================
 
 # --- HTTP -> HTTPS redirect ---
