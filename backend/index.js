@@ -46,7 +46,7 @@ const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || 'kaapavverify';
 
 // ====== ENV ======
-const PORT = process.env.PORT || 5555;
+const PORT = Number(process.env.PORT || process.env.WORKER_PORT || 5555);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123';
 const {
   MONGO_URI,
@@ -845,11 +845,10 @@ app.post('/webhook/wa', express.json({ type: '*/*' }), async (req, res) => {
 });
 // ====== Admin endpoints ======
 function requireAdminToken(req, res, next) {
-  if (!ADMIN_TOKEN) return next();
-  const h = req.headers.authorization || '';
-  const token = (h.split(' ')[1] || '').trim();
-  if (!token || token !== ADMIN_TOKEN) return res.status(401).send('Unauthorized');
-  return next();
+  const h = req.headers || {};
+  const token = (h.authorization || '').replace(/^Bearer\s+/, '') || h['x-admin-token'];
+  if (token === (process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123')) return next();
+  return res.status(401).json({ ok: false, err: 'unauthorized' });
 }
 
 app.post('/admin/send', requireAdminToken, async (req, res) => {
@@ -1025,8 +1024,6 @@ app.post('/api/test/sendMain', requireAdminToken, async (req, res) => {
     const text = (req.body?.text || 'Kaapav go-live ✅').toString();
     if (!to) return res.status(400).json({ ok: false, err: 'missing to' });
 
-    const api = await sendWhatsAppText(to, text);
-
     const outObj = { to, text, direction: 'out', ts: new Date(), meta: { api } };
     if (global.io) global.io.to('admins').emit('message_out', outObj);
 
@@ -1085,7 +1082,7 @@ app.post('/api/admin/login', async (req, res) => {
 
 // ====== Start server ======
 // ===== SINGLETON LISTENER (one source of truth) =====
-const PORT = Number(process.env.PORT || process.env.WORKER_PORT || 5555);
+
 if (require.main === module) {
   if (!server.listening) {
     server.on('error', (err) => {
@@ -1096,10 +1093,11 @@ if (require.main === module) {
       console.error('❌ Server error:', err);
       process.exit(1);
     });
-    server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
-  }
+    if (require.main === module) {
+  server.listen(PORT_NUM, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT_NUM}`));
+ }
 }
-
+}
 // ====== Keepalive ping (to prevent Render idling) ======
 setInterval(async () => {
   if (!RENDER_EXTERNAL_URL) {
@@ -1172,4 +1170,3 @@ function shutdown(sig) {
 }
 
 ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
-})
