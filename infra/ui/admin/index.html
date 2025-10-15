@@ -15,6 +15,67 @@
   --line:rgba(196,149,47,.18); --bg:#ffffff; --bg2:#FFFBF3; --shadow:0 10px 30px rgba(0,0,0,.08);
   --blue:#1d7ef2; --red:#b00020; --success:#17a24b;
 }
+  <script>
+(function Hardening(){
+  const qs = new URLSearchParams(location.search);
+  const SAFE = qs.has('safe');                  // /admin/?safe=1 disables socket boot
+  const FAIL_KEY = 'BOOT_FAILS';
+  const fails = +(localStorage.getItem(FAIL_KEY)||0);
+
+  // If we failed >3 times recently, auto-enter safe mode for this visit
+  if (!SAFE && fails >= 3) {
+    console.warn('Entering safe mode due to repeated boot failures.');
+    history.replaceState(null,'','/admin/?safe=1'); // don’t spam server
+  }
+
+  // Helper: mark a failure with capped counter (resets on successful boot)
+  window.__markBootFail = function(){
+    const n = Math.min(5, +(localStorage.getItem(FAIL_KEY)||0) + 1);
+    localStorage.setItem(FAIL_KEY, String(n));
+  };
+  window.__markBootOk = function(){
+    localStorage.removeItem(FAIL_KEY);
+  };
+
+  // Guarded boot: call this once your code is ready to init API/socket
+  window.__guardedBoot = async function(startFn){
+    if (qs.has('skipboot') || qs.has('safe')) {
+      console.info('Safe/skip boot; UI only.');
+      return;
+    }
+    try {
+      const r = await fetch('/api/health', { cache:'no-store' });
+      if (!r.ok) throw new Error('health !ok ' + r.status);
+      await startFn();           // your socket+UI init
+      window.__markBootOk();
+    } catch (e) {
+      console.error('Boot blocked:', e);
+      window.__markBootFail();
+      // Show banner instead of white screen
+      const b = document.createElement('div');
+      b.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;background:#fff8eb;color:#1f1c17';
+      b.innerHTML = `
+        <div style="padding:16px;border:1px solid rgba(196,149,47,.3);border-radius:12px;background:#fff;max-width:520px">
+          <div style="font-weight:800;margin-bottom:8px">API not reachable</div>
+          <div style="color:#8a8175;margin-bottom:12px">Open in safe mode (no socket) or retry.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="gm-retry" class="pill">Retry</button>
+            <a class="pill" href="/admin/?safe=1">Open Safe Mode</a>
+            <button id="gm-clear" class="pill">Clear Token</button>
+          </div>
+        </div>`;
+      document.body.appendChild(b);
+      document.getElementById('gm-retry').onclick = ()=> location.reload();
+      document.getElementById('gm-clear').onclick = ()=>{
+        localStorage.removeItem('ADMIN_TOKEN');
+        localStorage.removeItem('BOOT_FAILS');
+        location.href='/admin/?safe=1';
+      };
+    }
+  };
+})();
+</script>
+
 *{box-sizing:border-box} html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;background:var(--paper);color:var(--ink);overflow:hidden}
 .btn{border:none;border-radius:999px;padding:10px 14px;background:var(--gold);color:#fff;cursor:pointer;transition:.15s transform}
 .btn:active{transform:scale(.98)} .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;cursor:pointer}
