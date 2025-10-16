@@ -13,9 +13,14 @@ async function sendLocalizedText(to, text, lang = 'en') {
 }
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WA_PHONE_ID;
-const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+const WA_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WA_ACCESS_TOKEN || '';
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v17.0';
 const API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+// Back-compat (ensures any legacy code reading process.env sees values)
+process.env.WHATSAPP_ACCESS_TOKEN     = WA_TOKEN;
+process.env.WA_ACCESS_TOKEN           = WA_TOKEN;
+process.env.WHATSAPP_PHONE_NUMBER_ID  = WA_PHONE_ID;
+process.env.WA_PHONE_ID               = WA_PHONE_ID;
 
 // Optional integrations (internal, safe to leave empty)
 const SHEETS_ENABLED = process.env.SHEETS_ENABLED === '1';
@@ -86,14 +91,18 @@ async function _postToN8n(event, payload) {
 
 // ======== Core sender ========
 async function sendAPIRequest(payload) {
+  if (!WA_TOKEN || !WA_PHONE_ID) {
+    const meta = { tokenLen: (WA_TOKEN || '').length, phoneId: WA_PHONE_ID };
+    throw new Error(`wa_config_missing:${JSON.stringify(meta)}`);
+  }
   try {
     const res = await axios.post(API_URL, payload, {
-      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
       timeout: 15000,
     });
 
     try {
-      if (ioInstance) ioInstance.to('admin').emit('outgoing_message', { payload, ts: Date.now() });
+      if (ioInstance) ioInstance.to('admins').emit('outgoing_message', { payload, ts: Date.now() });
       _appendToSheets([
         new Date().toISOString(),
         'OUT',
@@ -112,7 +121,7 @@ async function sendAPIRequest(payload) {
 }
 
 async function sendText(to, text) {
-  const payload = { messaging_product: 'whatsapp', to, type: 'text', text: { body: text } };
+  const payload = { messaging_product: 'whatsapp', to: normalizeIN(to), type: 'text', text: { body: text } };
   return sendAPIRequest(payload);
 }
 
