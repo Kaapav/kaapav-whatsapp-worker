@@ -1,0 +1,1255 @@
+// File: index.js
+// KAAPAV WhatsApp Bot — Revised (Mongo + Redis + BullMQ + Fixes)
+// - Mongo (sessions+messages)
+// - Redis (session cache, idempotency, keep last 50 msgs)
+// - Optional BullMQ for follow-ups/retries (uses Redis)
+// - Socket.IO admin chat + message history
+// - Google Sheets + CRM/n8n + GitHub logging + keepalive (Render)
+// - Bug fixes: double routes, undefined var, message schema, robust webhook
+require('dotenv').config();
+// Upstash REST client (cache, dedupe, last-50)
+const { Redis: UpstashRedis } = require("@upstash/redis");
+const redis = new UpstashRedis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+// ioredis (BullMQ requires persistent connection)
+const IORedis = require("ioredis");
+const redisBull = process.env.REDIS_URI
+  ? new IORedis(process.env.REDIS_URI, {
+      tls: { rejectUnauthorized: false }, // Upstash TLS
+    })
+  : null;
+
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const http = require('http');
+const path = require('path');
+const cors = require('cors');
+const axios = require('axios');
+const { Server } = require('socket.io');
+const processedMessageIds = new Map(); // messageId -> timestamp
+
+// Optional BullMQ
+let Queue, Worker, JobsOptions;
+try {
+  ({ Queue, Worker, JobsOptions } = require('bullmq'));
+} catch (_) {
+  /* bullmq not installed; features stay disabled unless installed */
+}
+
+// utils
+const sendMessage = require('./utils/sendMessage');
+const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || 'kaapavverify';
+
+// ====== ENV ======
+const PORT = Number(process.env.PORT || process.env.WORKER_PORT || 5555);
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123';
+const {
+  MONGO_URI,
+  REDIS_URI,
+
+  // Optional integrations
+  SHEETS_ENABLED,            // "1" to enable
+  GOOGLE_PROJECT_ID,         // (unused but kept for completeness)
+  GOOGLE_CLIENT_EMAIL,
+  GOOGLE_PRIVATE_KEY,        // replace \n with real newlines
+  GOOGLE_SHEET_ID,
+  GOOGLE_SHEET_TAB = 'Leads',
+
+  CRM_WEBHOOK_URL,
+  N8N_WEBHOOK_URL,
+
+  GITHUB_TOKEN,
+  GITHUB_REPO,               // "owner/repo"
+  GITHUB_LOG_ISSUES = '0',
+
+  KEEPALIVE_INTERVAL_MS = 600000,
+  RENDER_EXTERNAL_URL,       // e.g., https://your-app.onrender.com
+
+  // basic anti-spam / idempotency
+  DUPLICATE_WINDOW_MS = 20000,
+
+  // BullMQ
+  BULL_ENABLED = '0',
+  FOLLOWUP_QUEUE = 'kaapav_followups'
+} = process.env;
+
+const app = express();
+app.use(bodyParser.json({ limit: '2mb' }));
+app.use(cors());
+
+
+// keep probe optional, never block health
+app.get('/api/health', async (_req, res) => {
+  const payload = {
+    ok: true,
+    service: 'wa-worker',
+    uptime: process.uptime(),
+    ts: Date.now(),
+  };
+
+  // Optional WA probe only if env exists
+  try {
+    if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+      const wa = await probeWhatsApp();       // your existing function
+      payload.whatsapp = { ok: true, ...wa };
+    } else {
+      payload.whatsapp = { ok: false, reason: 'missing_env' };
+    }
+  } catch (e) {
+    payload.whatsapp = { ok: false, reason: 'probe_failed' };
+  }
+
+  res.status(200).json(payload);
+});
+
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} not set`);
+  return v;
+}
+async function probeWhatsApp() {
+  if (!WA_TOKEN || !WA_PHONE_ID) return { status: 'missing' };
+  try {
+    const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${WA_TOKEN}` } });
+    if (r.status === 200) return { status: 'ok' };
+    if (r.status >= 500)  return { status: 'degraded', code: r.status };
+    return { status: 'degraded', code: r.status, body: await r.text().catch(() => '') };
+  } catch (e) {
+    return { status: 'degraded', err: e.message };
+  }
+}
+
+
+// Feature stubs
+app.post('/api/razorpay/link',     (req,res)=> res.json({ ok:true }));
+app.get ('/api/catalog/search',    (req,res)=> res.json({ items: [] }));
+app.post('/api/messages/catalogue',(req,res)=> res.json({ ok:true }));
+app.post('/api/shiprocket/status', (req,res)=> res.json({ ok:true }));
+app.post('/api/broadcast',         (req,res)=> res.json({ ok:true }));
+app.post('/api/messages/upload',   (req,res)=> res.json({ ok:true, id:`out_${Date.now()}` }));
+
+app.post('/api/auth/register', (req, res) => {
+  const { username, password, role } = req.body || {};
+  if (!username || !password) {
+   return res.status(400).json({ error: 'Missing creds' });
+  }
+  return res.status(201).json({ token: ADMIN_TOKEN, role: role || 'admin' });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'Missing creds' });
+  return res.json({ token: ADMIN_TOKEN });
+});
+
+// ====== HTTP + Socket.IO ======
+const server = http.createServer(app);
+const io = new Server(server, {
+  path: '/socket.io',
+  cors: { origin: ['https://crm.kaapav.com','https://www.crm.kaapav.com'], methods: ['GET','POST'] }
+});
+
+
+// ====== Mongo Models (optional but recommended) ======
+let SessionModel = null;
+let MessageModel = null;
+
+async function initMongo() {
+  if (!MONGO_URI) {
+    console.warn('⚠️ MONGO_URI not set — DB persistence disabled.');
+    return;
+  }
+  try {
+    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB || 'kaapav' });
+    console.log(`✅ MongoDB connected to DB: ${process.env.MONGO_DB || 'kaapav'}`);
+
+    const sessionSchema = new mongoose.Schema({
+      userId: { type: String, index: true, unique: true },
+      lastMenu: { type: String, default: 'main' },
+      meta: {
+        greetingSent: { type: Boolean, default: false },
+        name: String,
+        phone: String,
+        email: String,
+        orderId: String,
+        attributes: Object
+      },
+      counters: { interactions: { type: Number, default: 0 } },
+      lastTenMessages: { type: [String], default: [] },
+      updatedAt: { type: Date, default: Date.now }
+    });
+    SessionModel = mongoose.models.Session || mongoose.model('Session', sessionSchema, 'sessions');
+
+    const messageSchema = new mongoose.Schema({
+      userId: { type: String, index: true },
+      phone: { type: String }, // ✅ ensure phone is stored
+      direction: { type: String, enum: ['in', 'out'], default: 'in' },
+      type: String,
+      text: String,
+      payload: Object,
+      createdAt: { type: Date, default: Date.now },
+      messageId: { type: String, index: true },
+      name: String
+    });
+    MessageModel = mongoose.models.Message || mongoose.model('Message', messageSchema, 'messages');
+  } catch (e) {
+    console.error('❌ Mongo init error:', e.message);
+  }
+}
+initMongo();
+
+// attach socket to buttonHandler (no redundant re-require)
+try {
+  if (typeof setSocket === 'function') {
+    setSocket(io);
+    console.log('✅ Socket wired to buttonHandler via setSocket(io)');
+  } else {
+    console.error('❌ setSocket is not a function on buttonHandler export');
+  }
+} catch (err) {
+  console.error('❌ Error while calling setSocket:', err?.stack || err);
+}
+
+// ===== Presence Broadcaster (Online/Offline/Degraded) =====
+function broadcastPresence(state, note) {
+  try {
+    if (global.io) {
+      global.io.to('admins').emit('presence', { state, note, ts: Date.now() });
+      console.log(`📡 Presence: ${state}${note ? ' • ' + note : ''}`);
+    }
+  } catch (e) {
+    console.warn('presence broadcast fail:', e.message);
+  }
+}
+
+// ====== In-memory fallback (when Redis missing) ======
+const memSessions = {}; // local cache if Redis absent
+
+// ====== Helpers: Idempotency (prefer Redis) ======
+async function isDuplicateMessage(messageId) {
+  if (!messageId) return false;
+
+  // Redis check (safe two-step for Upstash)
+  if (redis) {
+    try {
+      const key = `dup:${messageId}`;
+      const existing = await redis.get(key);
+      if (existing) {
+        // already recorded recently
+        return true;
+      }
+      // set short TTL so duplicates within window are blocked
+      const ttlSeconds = Math.ceil(Number(DUPLICATE_WINDOW_MS) / 1000) || 20;
+      try {
+        await redis.set(key, "1", { ex: ttlSeconds });
+      } catch (e) {
+        // If set fails, continue — fallback to in-memory dedupe
+        console.warn("⚠️ Redis set in isDuplicateMessage failed:", e.message || e);
+      }
+      return false;
+    } catch (e) {
+      console.warn("⚠️ Redis duplicate check failed:", e.message || e);
+      // fall through to memory fallback
+    }
+  }
+
+  // memory fallback (unchanged)
+  if (!isDuplicateMessage._map) isDuplicateMessage._map = new Map();
+  const m = isDuplicateMessage._map;
+  const now = Date.now();
+  const last = m.get(messageId);
+  if (last && now - last < Number(DUPLICATE_WINDOW_MS)) return true;
+  m.set(messageId, now);
+
+  // cleanup
+  if (m.size > 5000) {
+    for (const [k, v] of m) if (now - v > 5 * 60 * 1000) m.delete(k);
+  }
+  return false;
+}
+
+
+async function loadSession(userId) {
+  if (!userId) return null;
+
+  // try Redis first
+  try {
+    const cached = await redis.get(`session:${userId}`);
+    if (cached) return JSON.parse(cached);
+  } catch {}
+
+  // fallback → in-memory
+  if (memSessions[userId]) return memSessions[userId];
+
+  // fallback → Mongo
+  if (SessionModel) {
+    try {
+      const doc = await SessionModel.findOne({ userId }).lean();
+      if (doc) {
+        await redis.set(`session:${userId}`, JSON.stringify(doc), { ex: 86400 }); // cache 1 day
+        memSessions[userId] = doc; // ✅ fixed typo
+        return doc;
+      }
+    } catch (e) {
+      console.warn("⚠️ session load error:", e.message);
+    }
+  }
+
+  // create default
+  const def = {
+    userId,
+    lastMenu: "main",
+    meta: { greetingSent: false, phone: userId },
+    counters: { interactions: 0 },
+    lastTenMessages: [],
+    updatedAt: new Date()
+  };
+
+  memSessions[userId] = def;
+  if (SessionModel) {
+    try { await SessionModel.updateOne({ userId }, { $set: def }, { upsert: true }); } catch {}
+  }
+  try { await redis.set(`session:${userId}`, JSON.stringify(def), { ex: 86400 }); } catch {}
+  try { io.to('admin').emit('session_update', def); } catch {}
+  return def;
+}
+
+async function upsertSession(userId, patch = {}) {
+  if (!userId) throw new Error('upsertSession: missing userId');
+
+  const now = new Date();
+
+  // safe load (handle null/undefined)
+  const existing = (await loadSession(userId)) || {};
+
+  // merge shallow for meta/counters
+  const mergedMeta = { ...(existing.meta || {}), ...(patch.meta || {}) };
+  const mergedCounters = { ...(existing.counters || {}), ...(patch.counters || {}) };
+
+  // handle lastTenMessages (cap 10)
+  const cap = 10;
+  const baseMsgs = Array.isArray(existing.lastTenMessages) ? existing.lastTenMessages : [];
+  const addedMsgs = Array.isArray(patch.lastTenMessages) ? patch.lastTenMessages : [];
+  const lastTenMessages = [...baseMsgs, ...addedMsgs].slice(-cap);
+
+  const newObj = {
+    ...existing,
+    ...patch,
+    meta: mergedMeta,
+    counters: mergedCounters,
+    lastTenMessages,
+    updatedAt: now,
+    userId
+  };
+
+  // persist to Mongo (non-fatal)
+  if (typeof SessionModel !== 'undefined' && SessionModel) {
+    try {
+      await SessionModel.updateOne(
+        { userId },
+        { $set: newObj },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn('⚠️ session upsert mongo error:', e.message);
+    }
+  }
+
+  // optional Redis cache (non-fatal)
+  try {
+    if (typeof redis !== 'undefined' && redis) {
+      await redis.set(`session:${userId}`, JSON.stringify(newObj), { ex: 3600 });
+    }
+  } catch (e) {
+    console.warn('⚠️ redis set session failed:', e.message || e);
+  }
+
+  // optional in-memory cache map (if you use one)
+  try {
+    if (typeof memSessions !== 'undefined') {
+      memSessions[userId] = newObj;
+    }
+  } catch (_) {}
+
+  return newObj;
+}
+
+/// ====== Messages (Mongo persistent; Redis keeps last 50 per user) ======
+// ========== Redis helpers ==========
+
+async function cacheMessage(userId, msg) {
+  if (!redis) return;
+  try {
+    await redis.lpush(`msgs:${userId}`, JSON.stringify(msg));
+    await redis.ltrim(`msgs:${userId}`, 0, 49); // keep last 50
+  } catch (e) {
+    console.warn("⚠️ Redis cacheMessage failed:", e.message);
+  }
+}
+
+async function pushRedisMessage(userId, obj) {
+  if (!redis) return;
+  try {
+    const key = `msgs:${userId}`;
+    await redis.rpush(key, JSON.stringify(obj)); // append to end
+    await redis.ltrim(key, -50, -1);             // keep last 50
+    await redis.expire(key, 7 * 24 * 3600);      // 7 days
+    await redis.set(`lastmsg:${userId}`, JSON.stringify(obj), { ex: 86400 });
+  } catch (e) {
+    console.warn("⚠️ Redis pushRedisMessage failed:", e.message);
+  }
+}
+
+async function getCachedMessages(userId) {
+  if (!redis) return [];
+  try {
+    const key = `msgs:${userId}`;
+    const arr = await redis.lrange(key, 0, -1);
+    return arr.map((s) => JSON.parse(s));
+  } catch (e) {
+    console.warn("⚠️ Redis getCachedMessages failed:", e.message);
+    return [];
+  }
+}
+
+
+// ========== Unified saveMessage ==========
+async function saveMessage(userId, direction, type, text, payload, messageId, name) {
+  try {
+    // Ensure session is loaded for phone/name enrichment
+    let session = null;
+    try {
+      session = await loadSession(userId);
+    } catch {}
+
+    const obj = {
+      userId,
+      phone: session?.meta?.phone || userId,
+      direction,                          // "in" or "out"
+      type: type || "text",
+      text: text || "",
+      payload: payload || null,
+      createdAt: new Date(),
+      messageId,
+      name: name || session?.meta?.name || null,
+    };
+
+    // ✅ Save to Mongo with idempotency check
+    if (MessageModel) {
+      if (messageId) {
+        const exists = await MessageModel.findOne({ messageId }).lean();
+        if (!exists) await MessageModel.create(obj);
+      } else {
+        await MessageModel.create(obj);
+      }
+    }
+
+    // ✅ Save to Redis cache (history + latest)
+    await cacheMessage(userId, obj);
+    await pushRedisMessage(userId, obj);
+
+    // ✅ Log
+    console.log(
+      `💾 [MongoDB] ${direction.toUpperCase()} | ${userId} | ${
+        obj.text || type
+      }`
+    );
+
+    // ✅ Broadcast to admin dashboard
+    try {
+      io.to("admin").emit("message_saved", obj);
+    } catch (err) {
+      console.warn("⚠️ socket emit error in saveMessage:", err.message);
+    }
+  } catch (e) {
+    console.warn("⚠️ saveMessage error", e.message);
+  }
+}
+
+// ====== Optional Integrations (Sheets / CRM / n8n / GitHub) ======
+let sheetsClient = null;
+async function initSheets() {
+  try {
+    if (SHEETS_ENABLED !== '1') return;
+    if (!GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_SHEET_ID) {
+      console.warn('⚠️ Sheets env incomplete — skipping Google Sheets init.');
+      return;
+    }
+    const { google } = require('googleapis');
+    const jwt = new google.auth.JWT({
+      email: GOOGLE_CLIENT_EMAIL,
+      key: (GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    });
+    await jwt.authorize();
+    sheetsClient = google.sheets({ version: 'v4', auth: jwt });
+    console.log('✅ Google Sheets client ready');
+  } catch (e) {
+    console.warn('⚠️ Sheets init failed:', e.message);
+  }
+}
+initSheets();
+
+async function appendToSheets(row) {
+  if (!sheetsClient) return;
+  try {
+    await sheetsClient.spreadsheets.values.append({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: `${GOOGLE_SHEET_TAB}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [row] }
+    });
+  } catch (e) {
+    console.warn('⚠️ Sheets append failed:', e.message);
+  }
+}
+
+async function postWebhook(url, payload) {
+  if (!url) return;
+  try { await axios.post(url, payload, { timeout: 15000 }); }
+  catch (e) { console.warn(`⚠️ webhook POST failed (${url}):`, e.message); }
+}
+
+async function logGithubIssue(title, body) {
+  try {
+    if (GITHUB_LOG_ISSUES !== '1' || !GITHUB_TOKEN || !GITHUB_REPO) return;
+    await axios.post(
+      `https://api.github.com/repos/${GITHUB_REPO}/issues`,
+      { title, body },
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, Accept: 'application/vnd.github+json' } }
+    );
+  } catch (e) {
+    console.warn('⚠️ GitHub issue log failed:', e.message);
+  }
+}
+
+// ====== BullMQ (optional, requires ioredis) ======
+let followupQueue = null;
+if (BULL_ENABLED === '1' && Queue && redisBull) {
+  followupQueue = new Queue(FOLLOWUP_QUEUE, { connection: redisBull });
+
+  new Worker(
+    FOLLOWUP_QUEUE,
+    async (job) => {
+      const { to, text } = job.data;
+      const waRes = await sendMessage.sendText(to, text);
+      await saveMessage(
+        to,
+        'out',
+        'text',
+        text,
+        { raw: waRes },
+        waRes?.messages?.[0]?.id || `out_${Date.now()}`
+      );
+    },
+    { connection: redisBull }
+  );
+
+  console.log('✅ BullMQ follow-up worker active');
+}
+
+async function scheduleFollowUp(to, text, delayMs = 3600000) {
+  if (!followupQueue) return;
+  await followupQueue.add('followup', { to, text }, { delay: delayMs });
+}
+
+
+// ====== Socket.IO admin real-time handlers ======
+io.on('connection', async (socket) => {
+  try {
+    const clientToken = socket.handshake.auth?.token || (socket.handshake.headers?.authorization || '').split(' ')[1];
+    if (ADMIN_TOKEN && clientToken !== ADMIN_TOKEN) {
+      socket.emit('admin_error', { error: 'unauthorized' });
+      socket.disconnect(true);
+      return;
+    }
+
+    socket.join('admin');
+
+    try {
+      if (SessionModel) {
+        const docs = await SessionModel.find().sort({ updatedAt: -1 }).limit(200).lean();
+        socket.emit('sessions_snapshot', docs);
+      } else {
+        const vals = Object.values(memSessions);
+        vals.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+        socket.emit('sessions_snapshot', vals);
+      }
+    } catch (e) {
+      socket.emit('admin_error', { error: 'failed_fetch_sessions', details: e.message });
+    }
+
+    socket.on('fetch_session_messages', async (userId) => {
+  if (!userId) return socket.emit('session_messages', []);
+  try {
+    let cached = [];
+    try {
+      const res = await redis.lrange(`msgs:${userId}`, 0, 49);
+      if (Array.isArray(res)) cached = res;
+    } catch (e) {
+      console.warn('⚠️ redis lrange failed:', e.message || e);
+    }
+    if (cached && cached.length) {
+      const msgs = cached.map(m => {
+        try { return JSON.parse(m); } catch (_) { return null; }
+      }).filter(Boolean);
+      return socket.emit('session_messages', msgs);
+    }
+    socket.emit('session_messages', []);
+  } catch (e) {
+    socket.emit('admin_error', { error: 'fetch_messages_failed', details: e.message });
+  }
+});
+
+
+    socket.on('admin_send_message', async ({ to, text }) => {
+      if (!to || !text) {
+        return socket.emit('admin_send_error', { error: 'missing_to_or_text' });
+      }
+      try {
+        const waRes = await sendMessage.sendText(to, text);
+        const msgId = waRes?.messages?.[0]?.id || `out_${Date.now()}`;
+        await saveMessage(to, 'out', 'text', text, { raw: waRes }, msgId, null);
+        io.to('admin').emit('outgoing_message', { to, type: 'text', text, ts: Date.now(), direction: 'out', id: msgId });
+      } catch (e) {
+        console.error('Admin send error:', e);
+        socket.emit('admin_send_error', { error: e.message || String(e) });
+      }
+    });
+
+    socket.on('admin_send_buttons', async (payload) => {
+      const { to, bodyText, buttons, footerText } = payload || {};
+      if (!to || !Array.isArray(buttons)) return socket.emit('admin_send_error', { error: 'invalid_buttons_payload' });
+      try {
+        if (typeof sendMessage.sendReplyButtons !== 'function') {
+          return socket.emit('admin_send_error', { error: 'sendReplyButtons not available in sendMessage' });
+        }
+        await sendMessage.sendReplyButtons(to, bodyText || '', buttons.slice(0, 3), footerText);
+        await saveMessage(to, 'out', 'interactive', bodyText || '', { buttons });
+        io.to('admin').emit('outgoing_message', { to, type: 'interactive', payload: { bodyText, buttons }, ts: Date.now(), direction: 'out' });
+      } catch (e) {
+        socket.emit('admin_send_error', { error: e.message || String(e) });
+      }
+    });
+  } catch (outerErr) {
+    try { socket.emit('admin_error', { error: outerErr.message || String(outerErr) }); } catch {}
+    socket.disconnect(true);
+  }
+});
+
+// ====== Helpers for menu actions ======
+const MENU_ACTIONS = {
+  sendMainMenu1: async (to) => { await sendMessage.sendMainMenu(to); await upsertSession(to, { lastMenu: 'main' }); },
+  sendMainMenu2: async (to) => { await sendMessage.sendMainMenu(to); await upsertSession(to, { lastMenu: 'main' }); },
+  sendJewelleryCategoriesMenu: async (to) => { await sendMessage.sendJewelleryCategoriesMenu(to); await upsertSession(to, { lastMenu: 'jewellery_categories' }); },
+  sendOffersMenu: async (to) => { await sendMessage.sendOffersAndMoreMenu(to); await upsertSession(to, { lastMenu: 'offers' }); },
+  sendPaymentMenu: async (to) => { await sendMessage.sendPaymentOrdersMenu(to); await upsertSession(to, { lastMenu: 'payment' }); },
+  sendChatMenu: async (to) => { await sendMessage.sendChatWithUsCta(to); await upsertSession(to, { lastMenu: 'chat' }); }
+};
+
+// ====== Text processing ======
+function normalizeText(s) { return (s || '').trim(); }
+
+async function processText(from, text, session, messageId) {
+  const raw = normalizeText(text);
+  await saveMessage(from, 'in', 'text', raw, { raw }, messageId);
+
+  // track lastTenMessages & counters
+  const lastTen = (session.lastTenMessages || []).slice(-9).concat(raw);
+  await upsertSession(from, { counters: { interactions: (session.counters?.interactions || 0) + 1 }, lastTenMessages: lastTen });
+
+  // capture lead hints
+  const emailMatch = raw.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+  const phoneMatch = raw.match(/(?:\+?\d{1,3})?[ -]?\d{10,13}/);
+  const nameHint = raw.toLowerCase().startsWith('my name is ') ? raw.slice(11).trim().split(/\s+/).slice(0, 3).join(' ') : null;
+  if (emailMatch || phoneMatch || nameHint) {
+    await upsertSession(from, { meta: { ...(emailMatch ? { email: emailMatch[0] } : {}), ...(phoneMatch ? { phone: phoneMatch[0] } : {}), ...(nameHint ? { name: nameHint } : {}) } });
+  }
+
+  // GOOGLE SHEETS + CRM/N8N + GitHub logging (async)
+  const sheetRow = [ new Date().toISOString(), from, raw, session.lastMenu || 'main', session.meta?.name || '', session.meta?.email || '', session.meta?.phone || from ];
+  appendToSheets(sheetRow).catch(()=>{});
+  const payload = { userId: from, text: raw, lastMenu: session.lastMenu, meta: session.meta, counters: session.counters };
+  postWebhook(CRM_WEBHOOK_URL, payload).catch(()=>{});
+  postWebhook(N8N_WEBHOOK_URL, payload).catch(()=>{});
+  logGithubIssue(`[Inbound] ${from}`, `**Text:** ${raw}\n**LastMenu:** ${session.lastMenu}\n**At:** ${new Date().toISOString()}`).catch(()=>{});
+
+  // greeting flow
+  if (!session.meta?.greetingSent || /^menu$/i.test(raw)) {
+    await MENU_ACTIONS.sendMainMenu1(from);
+    await upsertSession(from, { meta: { greetingSent: true }, lastMenu: 'main' });
+    return;
+  }
+
+  // route via button handler
+  try {
+    const handled = await handleButtonClick(from, raw, session, upsertSession);
+    if (handled) return;
+  } catch (e) {
+    console.warn('⚠️ buttonHandler threw on text:', e.message);
+  }
+
+  // keyword fallback
+  const lowered = raw.toLowerCase();
+  if (/(jewell?ery|browse|catalog)/.test(lowered)) return MENU_ACTIONS.sendJewelleryCategoriesMenu(from);
+  if (/(offer|discount)/.test(lowered)) return MENU_ACTIONS.sendOffersMenu(from);
+  if (/(pay|payment|razor)/.test(lowered)) return MENU_ACTIONS.sendPaymentMenu(from);
+  if (/(track|order)/.test(lowered)) {
+    if (typeof sendMessage.sendTrackOrderCta === 'function') await sendMessage.sendTrackOrderCta(from);
+    else await sendMessage.sendText(from, 'Track your order: https://www.shiprocket.in/shipment-tracking/');
+    return;
+  }
+  if (/(chat|help|support|agent)/.test(lowered)) return MENU_ACTIONS.sendChatMenu(from);
+
+  // default
+  await MENU_ACTIONS.sendMainMenu1(from);
+}
+
+// ====== Interactive processing ======
+async function processInteractive(from, rawReply, session, messageId) {
+  const normalized = String(rawReply || '').trim();
+  if (!normalized) return;
+
+  await saveMessage(from, 'in', 'interactive', normalized, { raw: rawReply }, messageId);
+
+  try {
+    const handled = await handleButtonClick(from, normalized, session, upsertSession);
+    if (!handled) await sendMessage.sendMainMenu(from);
+  } catch (e) {
+    console.error('❌ handleButtonClick error:', e.message || e);
+    await sendMessage.sendMainMenu(from);
+  }
+
+  try { io.to('admin').emit('button_pressed', { from, id: normalized, ts: Date.now() }); } catch {}
+}
+
+// Alias: /api/webhook → /webhooks/whatsapp/cloudapi
+app.use('/api/webhook', (req, res, next) => {
+const header = req.get('authorization') || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (token === (process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123')) return next();
+  return res.status(401).json({ ok: false, error: 'unauthorized' });
+});
+// ====== Webhook endpoints ======
+app.get('/webhooks/whatsapp/cloudapi', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode && token) {
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('✅ Webhook verified');
+      return res.status(200).send(challenge);
+    }
+    return res.sendStatus(403);
+  }
+  res.sendStatus(400);
+});
+
+app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
+  res.status(200).send('EVENT_RECEIVED');
+  try {
+    const body = req.body || {};
+    const entry = Array.isArray(body.entry) ? body.entry[0] : body.entry;
+    const change = entry?.changes?.[0];
+    const value = change?.value || {};
+    const messages = value?.messages || [];
+    const statuses = value?.statuses || [];
+
+    // ignore status events (delivered/read)
+    if (!messages.length && statuses.length) return;
+
+    const message = messages[0];
+    if (!message) return;
+
+    const from = message.from;
+    const msgId = message.id;
+    if (!from) return;
+
+    // Idempotency guard
+    if (await isDuplicateMessage(msgId)) {
+      console.log(`⏭️ duplicate message skipped: ${msgId}`);
+      return;
+    }
+
+    const session = await loadSession(from);
+
+    // emit incoming for admin (basic shape)
+    // Just broadcast to admin; persistence handled inside processText/processInteractive
+const msgObj = { type: message.type, text: message.text?.body || null, interactive: message.interactive || null };
+io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() });
+
+    if (message.type === 'interactive') {
+      const reply = message.interactive?.button_reply || message.interactive?.list_reply || {};
+      const rawId = (reply?.id || reply?.title || reply?.row_id || '').toString().trim();
+      if (!rawId) return;
+      await processInteractive(from, rawId, session, msgId);
+      return;
+    }
+
+    if (message.type === 'text') {
+      const txt = message.text?.body || '';
+      await processText(from, txt, session, msgId);
+      return;
+    }
+
+    // other media types — acknowledge politely
+    if (message.type) {
+      await saveMessage(from, 'in', message.type, null, { raw: message }, msgId);
+      await sendMessage.sendText(from, 'Thanks — we received your message. Reply "menu" to see options.');
+    }
+  } catch (err) {
+    console.error('❌ Webhook processing error:', err?.response?.data || err.message || err);
+  }
+});
+
+// ==========================================================
+// ✅ WHATSAPP CLOUD API WEBHOOK HANDLER (PRODUCTION READY)
+// ==========================================================
+app.get('/webhook/wa', (req, res) => {
+  const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN || 'kaapav_verify_123';
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('✅ Meta Webhook verified');
+    return res.status(200).send(challenge);
+  }
+  console.warn('❌ Webhook verify failed');
+  return res.sendStatus(403);
+});
+
+const _waIdToMeta = new Map(); // WA msg id → local meta id
+
+app.post('/webhook/wa', express.json({ type: '*/*' }), async (req, res) => {
+  try {
+    const body = req.body;
+    const entries = body?.entry || [];
+    for (const e of entries) {
+      const changes = e?.changes || [];
+      for (const c of changes) {
+        const v = c?.value || {};
+
+        // 🔹 Handle inbound messages
+        if (Array.isArray(v.messages)) {
+          for (const m of v.messages) {
+            const from = m.from;
+            const text = m.text?.body || '';
+            const wamid = m.id;
+            const ts = Number(m.timestamp) * 1000;
+
+            console.log(`📩 Incoming WA msg from ${from}: ${text}`);
+
+            // Optional Mongo insert
+            try {
+              if (MessageModel) {
+                await MessageModel.create({
+                  from,
+                  text,
+                  wamid,
+                  ts,
+                  direction: 'inbound',
+                });
+              }
+            } catch (err) {
+              console.warn('mongo insert fail:', err.message);
+            }
+
+            // Broadcast to UI
+            try {
+              global.io?.to('admins').emit('message', {
+                from,
+                text,
+                wamid,
+                ts,
+                direction: 'inbound',
+              });
+            } catch {}
+          }
+        }
+
+        // 🔹 Handle status updates
+        const statuses = v.statuses || [];
+        for (const s of statuses) {
+          const waId = s.id;
+          const status = s.status;
+          const metaId = _waIdToMeta.get(waId);
+
+          console.log(`📬 Status ${status} for ${waId}`);
+
+          // Emit status tick updates
+          try {
+            global.io?.to('admins').emit('message_status', {
+              metaId: metaId || waId,
+              status,
+            });
+          } catch {}
+
+          // Optional Mongo update
+          try {
+            if (MessageModel) {
+              await MessageModel.updateOne(
+                { wamid: waId },
+                { $set: { status, updatedAt: new Date() } }
+              );
+            }
+          } catch (err) {
+            console.warn('mongo update fail:', err.message);
+          }
+
+          // Emit presence for activity
+          if (['sent', 'delivered', 'read'].includes(status)) {
+            try {
+              global.io?.to('admins').emit('presence', {
+                state: 'online',
+                note: 'WA',
+                ts: Date.now(),
+              });
+            } catch {}
+          }
+        }
+      }
+    }
+    return res.sendStatus(200);
+  } catch (err) {
+    console.error('❌ webhook error:', err.message);
+    return res.sendStatus(200);
+  }
+});
+
+// ====== Admin endpoints ======
+function requireAdminToken(req, res, next) {
+  const h = req.headers || {};
+  const token = (h.authorization || '').replace(/^Bearer\s+/, '') || h['x-admin-token'];
+  if (token === (process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123')) return next();
+  return res.status(401).json({ ok: false, err: 'unauthorized' });
+}
+
+app.post('/admin/send', requireAdminToken, async (req, res) => {
+  const { to, action } = req.body || {};
+  if (!to || !action) return res.status(400).send('Missing to or action');
+  const fn = MENU_ACTIONS[action];
+  if (!fn) return res.status(400).send('Unknown action');
+  try {
+    await fn(to);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('❌ admin/send error:', e);
+    return res.status(500).send(e.message || 'error');
+  }
+});
+
+app.post('/admin/simulate', requireAdminToken, async (req, res) => {
+  const { to, text } = req.body || {};
+  if (!to || !text) return res.status(400).send('Missing to or text');
+  try { io.to('admin').emit('incoming_message', { from: to, message: { type: 'text', text }, ts: Date.now() }); } catch {}
+  const session = await loadSession(to);
+  try {
+    const handled = await handleButtonClick(to, text, session, upsertSession);
+    if (!handled) await MENU_ACTIONS.sendMainMenu1(to);
+  } catch (e) {
+    console.error('❌ simulate handling error:', e.message || e);
+  }
+  return res.json({ ok: true });
+});
+
+app.post('/admin/raw', requireAdminToken, async (req, res) => {
+  const { to, payload } = req.body || {};
+  if (!to || !payload) return res.status(400).send('Missing to or payload');
+  if (typeof sendMessage.sendAPIRequest === 'function') {
+    try {
+      await sendMessage.sendAPIRequest({ ...payload, to });
+      try { io.to('admin').emit('outgoing_message', { to, action: 'raw', payload, ts: Date.now() }); } catch {}
+      return res.json({ ok: true });
+    } catch (e) {
+      console.error('❌ raw send error:', e);
+      return res.status(500).send(e.message || 'error');
+    }
+  }
+  return res.status(400).send('sendAPIRequest not exposed');
+});
+
+// serve static dashboard if built into public/dashboard
+app.use('/dashboard', express.static(path.join(process.cwd(), 'public', 'dashboard')));
+
+// quick test endpoint
+app.post('/test/sendMain', async (req, res) => {
+  try {
+    const to = req.body?.to;
+    if (!to) return res.status(400).send('Missing "to"');
+    await MENU_ACTIONS.sendMainMenu1(to);
+    return res.status(200).send('Main menu sent');
+  } catch (e) {
+    console.error('❌ test sendMain error:', e);
+    return res.status(500).send('Error sending main');
+  }
+});
+
+// --- status endpoint for UI health/connection badge ---
+app.get('/api/status', (req, res) => {
+  res.json({
+    ok: true,
+    phoneNumber: process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '745230991999571',
+    uptime: process.uptime()
+  });
+});
+
+// ====== KAAPAV UI BACKEND (DEDUPED + ENV-ALIGNED) ============================
+// Auth guard
+function requireAdminToken(req, res, next) {
+  const h = req.headers || {};
+  const tok = (h.authorization || '').replace(/^Bearer\s+/, '') || h['x-admin-token'];
+  if (tok === (process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123')) return next();
+  return res.status(401).json({ ok: false, err: 'unauthorized' });
+}
+
+// In-memory cache (safe defaults; swap with Mongo when ready)
+const _memory = { sessions: {}, notes: {} };
+const normPhone = s => (s || '').toString().replace(/\D/g, ''); // digits only
+
+// ---- WhatsApp Cloud API config (uses YOUR env names) ----
+const WA_BUSINESS_NUMBER      = normPhone(process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016'); // default for tests
+const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v17.0';
+const WA_TOKEN   = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WA_ACCESS_TOKEN || '';
+const WA_PHONE_ID= process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WA_PHONE_ID || '';
+if (!WA_TOKEN)   console.error('❌ Missing WA/WHATSAPP_ACCESS_TOKEN');
+if (!WA_PHONE_ID)console.error('❌ Missing WA/WHATSAPP_PHONE_ID');
+const WA_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}/messages`;
+
+// ---- Single, canonical sender (NO duplicates anywhere else) ----
+async function sendWhatsAppText(to, text) {
+  if (!WHATSAPP_ACCESS_TOKEN || !WA_PHONE_NUMBER_ID) {
+    console.warn('⚠️ WhatsApp creds missing; simulate send', { to, text });
+    broadcastPresence('degraded', 'Missing creds');
+    return { simulated: true };
+  }
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'text',
+    text: { preview_url: false, body: text }
+  };
+  try {
+    const res = await fetch(WA_API_BASE, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errtxt = await res.text().catch(()=> '');
+      broadcastPresence('degraded', 'WA API error ' + res.status);
+      throw new Error(`WA send failed: ${res.status} ${res.statusText} ${errtxt}`);
+    }
+
+    broadcastPresence('online');
+    return res.json().catch(()=> ({}));
+  } catch (e) {
+    broadcastPresence('degraded', 'WA send fail');
+    throw e;
+  }
+}
+
+
+// ---- Sessions snapshot (left panel) ----
+app.get('/api/sessions', requireAdminToken, async (req, res) => {
+  res.json(Object.values(_memory.sessions));
+});
+
+// ---- Message history (center thread) ----
+app.get('/api/messages/history', requireAdminToken, async (req, res) => {
+  const id = normPhone(req.query.user || '');
+  const hist = (_memory.sessions[id]?.messages) || [];
+  res.json(hist.slice(-200));
+});
+
+// ---- Send message (composer + programmatic) ----
+app.post('/api/messages/send', requireAdminToken, async (req, res) => {
+  try {
+    const to   = normPhone(req.body?.to || '');
+    const text = (req.body?.text || '').toString();
+    if (!to || !text) return res.status(400).json({ ok: false, err: 'to+text required' });
+
+    const api = await sendWhatsAppText(to, text);
+
+    // update memory & broadcast (optional)
+    const msg = { from: 'admin', to, text, direction: 'out', status: 'sent', ts: Date.now() };
+    _memory.sessions[to] = _memory.sessions[to] || { userId: to, name: to, lastMessage: '', messages: [] };
+    _memory.sessions[to].messages.push(msg);
+    _memory.sessions[to].lastMessage = text;
+
+    if (global.io) {
+      global.io.to('admins').emit('outgoing_message', msg);
+      global.io.to(to).emit('message', msg);
+    }
+
+    res.json({ ok: true, to, text, api });
+  } catch (e) {
+    res.status(500).json({ ok: false, err: e.message || String(e) });
+  }
+});
+
+// ---- One-tap test route (defaults to your business number if "to" empty) ----
+app.post('/api/test/sendMain', requireAdminToken, async (req, res) => {
+  try {
+    const to   = normPhone(req.body?.to || WA_BUSINESS_NUMBER);
+    const text = (req.body?.text || 'Kaapav go-live ✅').toString();
+    if (!to) return res.status(400).json({ ok: false, err: 'missing to' });
+
+    const outObj = { to, text, direction: 'out', ts: new Date(), meta: { api } };
+    if (global.io) global.io.to('admins').emit('message_out', outObj);
+
+    // optional persistence hooks (no-ops if undefined)
+    if (typeof cacheMessage === 'function') await cacheMessage(to, outObj);
+    if (typeof MessageModel !== 'undefined' && MessageModel) {
+      try { await MessageModel.create(outObj); } catch (e) { console.warn('msg save fail:', e.message); }
+    }
+
+    res.json({ ok: true, to, text, api });
+  } catch (e) {
+    res.status(500).json({ ok: false, err: e.message || String(e) });
+  }
+});
+
+// ---- Contacts / notes / ops (right panel) ----
+app.post('/api/contacts/save', requireAdminToken, async (req, res) => {
+  const phone = normPhone(req.body?.phone || '');
+  const name  = (req.body?.name || '').toString() || phone;
+  if (!phone) return res.status(400).json({ ok: false, err: 'missing phone' });
+  _memory.sessions[phone] = _memory.sessions[phone] || { userId: phone, name: phone, messages: [], lastMessage: '' };
+  _memory.sessions[phone].name = name;
+  res.json({ ok: true });
+});
+
+app.post('/api/contacts/note', requireAdminToken, async (req, res) => {
+  const user = normPhone(req.body?.user || '');
+  const note = (req.body?.note || '').toString();
+  if (!user) return res.status(400).json({ ok: false, err: 'missing user' });
+  _memory.notes[user] = note;
+  res.json({ ok: true });
+});
+
+// Stubs you can wire later
+app.post('/api/catalogue/send', requireAdminToken, async (req, res) => {
+  res.json({ ok: true, info: 'catalogue stub accepted' });
+});
+
+app.post('/api/pay/link', requireAdminToken, async (req, res) => {
+  const amount = Number(req.body?.amount || 0);
+  if (amount <= 0) return res.status(400).json({ ok: false, err: 'amount>0 required' });
+  const link = `https://pay.kaapav.com/i/${Date.now().toString(36)}?amt=${amount}`;
+  res.json({ ok: true, link });
+});
+
+app.get('/api/ship/status', requireAdminToken, async (req, res) => {
+  const awb = (req.query?.awb || '').toString();
+  res.json({ ok: true, awb, status: 'In transit', updated: new Date().toISOString() });
+});
+
+// Basic admin login (returns ADMIN_TOKEN so UI can store it)
+app.post('/api/admin/login', async (req, res) => {
+  res.json({ ok: true, token: process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123' });
+});
+// ====== END KAAPAV UI BACKEND =================================================
+
+// ====== Start server ======
+// ===== SINGLETON LISTENER (one source of truth) =====
+if (require.main === module) {
+  if (!server.listening) {
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} already in use. Another instance is running.`);
+        process.exit(1);
+      }
+      console.error('❌ Server error:', err);
+      process.exit(1);
+    });
+
+    // ✅ Only one listener, clean, consistent
+    server.listen(PORT, '0.0.0.0', () =>
+      console.log(`🚀 Server running on port ${PORT}`)
+    );
+  }
+}
+// ====== Keepalive ping (to prevent Render idling) ======
+setInterval(async () => {
+  if (!RENDER_EXTERNAL_URL) {
+    console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
+    return;
+  }
+
+  const interval = parseInt(KEEPALIVE_INTERVAL_MS) || 600000;
+  const nextPing = new Date(Date.now() + interval);
+
+  const istFormatter = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
+
+  try {
+    await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
+    console.log(`🔄 Keepalive ping sent | next @ ${istFormatter.format(nextPing)}`);
+  } catch (err) {
+    console.warn("⚠️ Keepalive ping failed:", err.message || err);
+  }
+}, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);
+
+
+// ====== Redis Keepalive (prevent Upstash auto-delete) ======
+setInterval(async () => {
+  try {
+    await redis.set("keepalive", Date.now());
+    console.log("🔄 Redis keepalive ping sent");
+  } catch (err) {
+    console.warn("⚠️ Redis keepalive failed:", err.message);
+  }
+}, 24 * 60 * 60 * 1000); // once per day
+
+// ====== Graceful shutdown ======
+function shutdown(sig) {
+  console.log(`\n${sig} received — shutting down...`);
+
+  // Failsafe: force exit after 5s if cleanup hangs
+  setTimeout(() => {
+    console.error('⏳ Force exiting after 5s timeout');
+    process.exit(1);
+  }, 5000);
+
+  // 1. Close MongoDB
+  if (mongoose.connection.readyState === 1) {
+    mongoose.connection.close(false, () => {
+      console.log('✅ MongoDB disconnected');
+    });
+  }
+
+  // 2. Redis (Upstash REST client has nothing to close)
+  console.log('ℹ️ Upstash Redis REST client is stateless — no shutdown needed');
+
+  // 3. Close Socket.IO
+  if (io && typeof io.close === 'function') {
+    io.close(() => {
+      console.log('✅ Socket.IO server closed');
+    });
+  }
+
+  // 4. Close HTTP server last
+  server.close(() => {
+    console.log('✅ HTTP server closed');
+    process.exit(0);
+  });
+}
+
+['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
