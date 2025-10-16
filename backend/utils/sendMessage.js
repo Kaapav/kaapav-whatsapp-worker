@@ -4,23 +4,38 @@
 // Optional telemetry to n8n / Google Sheets (env-gated)
 
 const axios = require('axios');
-require('dotenv').config();
+require('dotenv-expand').expand(require('dotenv').config());
 const { fromEnglish } = require('./translate.js');
+
+// Normalize Indian numbers into WhatsApp format (91XXXXXXXXXX)
+function normalizeIN(phone) {
+  if (!phone) return '';
+  const digits = phone.toString().replace(/\D/g, '');
+  if (digits.startsWith('91')) return digits;
+  if (digits.startsWith('0')) return `91${digits.slice(1)}`;
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+}
 
 async function sendLocalizedText(to, text, lang = 'en') {
   const localized = await fromEnglish(text, lang);
   return sendText(to, localized);
 }
 
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WA_PHONE_ID;
-const WA_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WA_ACCESS_TOKEN || '';
+const WA_PHONE_ID = (process.env.WA_PHONE_ID || process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim();
+const WA_TOKEN = (process.env.WHATSAPP_ACCESS_TOKEN || process.env.WA_ACCESS_TOKEN || process.env.WA_TOKEN || '').trim();
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v17.0';
-const API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_ID}/messages`;
+const API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}/messages`;
 // Back-compat (ensures any legacy code reading process.env sees values)
 process.env.WHATSAPP_ACCESS_TOKEN     = WA_TOKEN;
 process.env.WA_ACCESS_TOKEN           = WA_TOKEN;
-process.env.PHONE_NUMBER_ID  = WA_PHONE_ID;
 process.env.WA_PHONE_ID               = WA_PHONE_ID;
+process.env.WHATSAPP_PHONE_NUMBER_ID = WA_PHONE_ID;
+
+// optional diagnostics
+if (!WA_TOKEN)    console.warn('[sendMessage] ⚠️ WA_TOKEN missing');
+if (!WA_PHONE_ID) console.warn('[sendMessage] ⚠️ WA_PHONE_ID missing');
+else              console.log(`[sendMessage] ✅ CloudAPI wired → phoneId ${WA_PHONE_ID}`);
 
 // Optional integrations (internal, safe to leave empty)
 const SHEETS_ENABLED = process.env.SHEETS_ENABLED === '1';
