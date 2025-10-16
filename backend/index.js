@@ -1022,7 +1022,7 @@ const WA_API_BASE             = WA_PHONE_ID ? `https://graph.facebook.com/${GRAP
 
 // ---- Single, canonical sender (NO duplicates anywhere else) ----
 async function sendWhatsAppText(to, text) {
-  if (!WA_ACCESS_TOKEN || !WA_PHONE_NUMBER_ID) {
+  if (! WHATSAPP_ACCESS_TOKEN || !WA_PHONE_NUMBER_ID) {
     console.warn('⚠️ WhatsApp creds missing; simulate send', { to, text });
     broadcastPresence('degraded', 'Missing creds');
     return { simulated: true };
@@ -1037,7 +1037,7 @@ async function sendWhatsAppText(to, text) {
     const res = await fetch(WA_API_BASE, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${WA_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${ WHATSAPP_ACCESS_TOKEN}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
