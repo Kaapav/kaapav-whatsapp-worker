@@ -1015,14 +1015,30 @@ const _memory = { sessions: {}, notes: {} };
 const normPhone = s => (s || '').toString().replace(/\D/g, ''); // digits only
 
 // ---- WhatsApp Cloud API config (uses YOUR env names) ----
-const WA_BUSINESS_NUMBER      = normPhone(process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016'); // default for tests
+const WA_BUSINESS_NUMBER = normPhone(process.env.WHATSAPP_BUSINESS_NUMBER || '9148330016'); // default for tests
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v17.0';
 const WA_TOKEN   = process.env.WHATSAPP_ACCESS_TOKEN || process.env.WA_ACCESS_TOKEN || '';
 const WA_PHONE_ID= process.env.WHATSAPP_PHONE_NUMBER_ID || process.env.WA_PHONE_ID || '';
 if (!WA_TOKEN)   console.error('❌ Missing WA/WHATSAPP_ACCESS_TOKEN');
 if (!WA_PHONE_ID)console.error('❌ Missing WA/WHATSAPP_PHONE_ID');
 const WA_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}/${WA_PHONE_ID}/messages`;
+console.log('⚙️ WA config → tokenLen:', (WA_TOKEN||'').length, 'phoneId:', WA_PHONE_ID);
 
+// Back-compat (ensures any legacy code reading process.env sees values)
+process.env.WHATSAPP_ACCESS_TOKEN     = WA_TOKEN;
+process.env.WA_ACCESS_TOKEN           = WA_TOKEN;
+process.env.WHATSAPP_PHONE_NUMBER_ID  = WA_PHONE_ID;
+process.env.WA_PHONE_ID               = WA_PHONE_ID;
+
+// --- TEMP: debug endpoint (no secrets) ---
+ app.get('/api/debug/config', (req, res) => {
+   res.json({
+     ok: true,
+     tokenLen: (WA_TOKEN || '').length,
+     phoneId: WA_PHONE_ID || null,
+     graph: GRAPH_API_VERSION
+   });
+});
 // ---- Single, canonical sender (NO duplicates anywhere else) ----
 async function sendWhatsAppText(to, text) {
   if (!WHATSAPP_ACCESS_TOKEN || !WA_PHONE_NUMBER_ID) {
@@ -1074,88 +1090,175 @@ app.get('/api/messages/history', requireAdminToken, async (req, res) => {
 });
 
 // ---- Send message (composer + programmatic) ----
-app.post('/api/messages/send', requireAdminToken, async (req, res) => {
+// REPLACE your existing send route with this
+app.post('/api/messages/send', requireAdminToken, express.json(), async (req, res) => {
   try {
-    const to   = normPhone(req.body?.to || '');
-    const text = (req.body?.text || '').toString();
-    if (!to || !text) return res.status(400).json({ ok: false, err: 'to+text required' });
+    const toRaw = (req.body?.to || '').toString();
+    const text  = (req.body?.text || '').toString();
 
-    const api = await sendWhatsAppText(to, text);
+    // normalize phone (keep your normPhone if preferred)
+    const to = normPhone ? normPhone(toRaw) : (toRaw.replace(/\D/g, '').replace(/^0+/, ''));
 
-    // update memory & broadcast (optional)
-    const msg = { from: 'admin', to, text, direction: 'out', status: 'sent', ts: Date.now() };
+    if (!to || !text) {
+      return res.status(400).json({ ok: false, err: 'to+text required' });
+    }
+
+    // 🔐 Unified sender (uses WA_TOKEN / WA_PHONE_ID under the hood)
+    const out = await sendWhatsAppText(to, text);
+
+    // Handle Graph failures cleanly (24h window, bad recipient, etc.)
+    if (!out || out.ok === false || out.error) {
+      return res
+        .status(502)
+        .json({ ok: false, err: out.error || 'wa_send_failed', meta: out.meta || null });
+    }
+
+    // Extract WA message id if present
+    const waId = out?.messages?.[0]?.id || out?.id || null;
+
+    // Persist to in-memory store (safe to keep your structure)
+    const msg = {
+      id: waId || ('kp_' + Date.now().toString(36)),
+      from: 'admin',
+      to,
+      text,
+      direction: 'out',
+      status: 'sent',
+      ts: Date.now()
+    };
+
     _memory.sessions[to] = _memory.sessions[to] || { userId: to, name: to, lastMessage: '', messages: [] };
     _memory.sessions[to].messages.push(msg);
     _memory.sessions[to].lastMessage = text;
 
-    if (global.io) {
-      global.io.to('admins').emit('outgoing_message', msg);
-      global.io.to(to).emit('message', msg);
-    }
+    // Broadcast to admins (and optional user room, if you join them elsewhere)
+    try {
+      if (global.io) {
+        global.io.to('admins').emit('outgoing_message', msg);
+        // if you're using per-user rooms, keep this:
+        global.io.to(to).emit('message', msg);
+      }
+    } catch (_) {}
 
-    res.json({ ok: true, to, text, api });
+    return res.json({ ok: true, id: waId, to, text });
   } catch (e) {
-    res.status(500).json({ ok: false, err: e.message || String(e) });
+    // bubble exact graph error message if axios wrapped it
+    const graphMsg = e?.response?.data?.error?.message;
+    return res.status(500).json({ ok: false, err: graphMsg || e.message || 'send_error' });
   }
 });
 
-// ---- One-tap test route (defaults to your business number if "to" empty) ----
-app.post('/api/test/sendMain', requireAdminToken, async (req, res) => {
+// ---- One-tap test route (admin-only) ----
+// env fallback: export TEST_TO=918050459500 (or your own mobile)
+const DEFAULT_TEST_TO = process.env.TEST_TO || '918050459500';
+
+app.post('/api/test/sendMain', requireAdminToken, express.json(), async (req, res) => {
   try {
-    const to   = normPhone(req.body?.to || WA_BUSINESS_NUMBER);
-    const text = (req.body?.text || 'Kaapav go-live ✅').toString();
+    const toRaw = (req.body?.to || DEFAULT_TEST_TO).toString();
+    const to    = typeof normPhone === 'function'
+      ? normPhone(toRaw)
+      : toRaw.replace(/\D/g, '').replace(/^0+/, '');
+    const text  = (req.body?.text || 'Kaapav go-live ✅').toString();
+
     if (!to) return res.status(400).json({ ok: false, err: 'missing to' });
 
-    const outObj = { to, text, direction: 'out', ts: new Date(), meta: { api } };
-    if (global.io) global.io.to('admins').emit('message_out', outObj);
-
-    // optional persistence hooks (no-ops if undefined)
-    if (typeof cacheMessage === 'function') await cacheMessage(to, outObj);
-    if (typeof MessageModel !== 'undefined' && MessageModel) {
-      try { await MessageModel.create(outObj); } catch (e) { console.warn('msg save fail:', e.message); }
+    // Send via unified sender (uses WA_TOKEN/WA_PHONE_ID internally)
+    const out = await sendWhatsAppText(to, text);
+    if (!out || out.ok === false || out.error) {
+      return res.status(502).json({ ok: false, err: out.error || 'wa_send_failed', meta: out.meta || null });
     }
 
-    res.json({ ok: true, to, text, api });
+    const waId = out?.messages?.[0]?.id || out?.id || null;
+
+    const msg = {
+      id: waId || ('kp_' + Date.now().toString(36)),
+      from: 'admin',
+      to,
+      text,
+      direction: 'out',
+      status: 'sent',
+      ts: Date.now()
+    };
+
+    // broadcast to dashboard
+    try { global.io?.to('admins').emit('outgoing_message', msg); } catch {}
+
+    // optional persistence (guarded)
+    try {
+      if (typeof cacheMessage === 'function') await cacheMessage(to, msg);
+      if (typeof MessageModel !== 'undefined' && MessageModel) {
+        await MessageModel.create(msg);
+      }
+      // also keep in-memory list if you use it
+      if (typeof _memory !== 'undefined' && _memory?.sessions) {
+        _memory.sessions[to] = _memory.sessions[to] || { userId: to, name: to, lastMessage: '', messages: [] };
+        _memory.sessions[to].messages.push(msg);
+        _memory.sessions[to].lastMessage = text;
+      }
+    } catch (e) {
+      console.warn('test/sendMain persist warn:', e.message);
+    }
+
+    return res.json({ ok: true, id: waId, to, text });
   } catch (e) {
-    res.status(500).json({ ok: false, err: e.message || String(e) });
+    const graphMsg = e?.response?.data?.error?.message;
+    return res.status(500).json({ ok: false, err: graphMsg || e.message || 'send_error' });
   }
 });
 
+// --- safety: ensure memory stores exist (once) ---
+global._memory = global._memory || { sessions: Object.create(null), notes: Object.create(null) };
+const ensurePhone = s => (typeof normPhone === 'function'
+  ? normPhone(s)
+  : (s||'').toString().replace(/\D/g,'').replace(/^0+/, ''));
+
 // ---- Contacts / notes / ops (right panel) ----
-app.post('/api/contacts/save', requireAdminToken, async (req, res) => {
-  const phone = normPhone(req.body?.phone || '');
-  const name  = (req.body?.name || '').toString() || phone;
+app.post('/api/contacts/save', requireAdminToken, express.json(), async (req, res) => {
+  const phone = ensurePhone(req.body?.phone || '');
+  const name  = ((req.body?.name || '') + '').trim().slice(0, 80) || phone;
   if (!phone) return res.status(400).json({ ok: false, err: 'missing phone' });
   _memory.sessions[phone] = _memory.sessions[phone] || { userId: phone, name: phone, messages: [], lastMessage: '' };
   _memory.sessions[phone].name = name;
-  res.json({ ok: true });
+  return res.json({ ok: true, contact: { userId: phone, name } });
 });
 
-app.post('/api/contacts/note', requireAdminToken, async (req, res) => {
-  const user = normPhone(req.body?.user || '');
-  const note = (req.body?.note || '').toString();
+app.post('/api/contacts/note', requireAdminToken, express.json(), async (req, res) => {
+  const user = ensurePhone(req.body?.user || '');
+  const note = ((req.body?.note || '') + '').slice(0, 4000);
   if (!user) return res.status(400).json({ ok: false, err: 'missing user' });
   _memory.notes[user] = note;
-  res.json({ ok: true });
+  return res.json({ ok: true, user, noteLen: note.length });
 });
 
-// Stubs you can wire later
-app.post('/api/catalogue/send', requireAdminToken, async (req, res) => {
-  res.json({ ok: true, info: 'catalogue stub accepted' });
+app.post('/api/contacts/note', requireAdminToken, express.json(), async (req, res) => {
+  const user = ensurePhone(req.body?.user || '');
+  const note = ((req.body?.note || '') + '').slice(0, 4000);
+  if (!user) return res.status(400).json({ ok: false, err: 'missing user' });
+  _memory.notes[user] = note;
+  return res.json({ ok: true, user, noteLen: note.length });
 });
 
-app.post('/api/pay/link', requireAdminToken, async (req, res) => {
-  const amount = Number(req.body?.amount || 0);
+app.post('/api/pay/link', requireAdminToken, express.json(), async (req, res) => {
+  const amount = Math.floor(Number(req.body?.amount || 0));
+  const note   = ((req.body?.note || '') + '').trim().slice(0, 140);
+  const to     = ensurePhone(req.body?.to || '');
   if (amount <= 0) return res.status(400).json({ ok: false, err: 'amount>0 required' });
-  const link = `https://pay.kaapav.com/i/${Date.now().toString(36)}?amt=${amount}`;
-  res.json({ ok: true, link });
+  const id   = Date.now().toString(36);
+  const link = `https://razorpay.me/@kaapav?amount=${amount}&note=${encodeURIComponent(note||('Order '+id))}`;
+  return res.json({ ok: true, link, id, amount, note, to });
 });
 
 app.get('/api/ship/status', requireAdminToken, async (req, res) => {
-  const awb = (req.query?.awb || '').toString();
-  res.json({ ok: true, awb, status: 'In transit', updated: new Date().toISOString() });
+  const awb = ((req.query?.awb || '') + '').trim();
+  if (!awb) return res.status(400).json({ ok:false, err:'awb required' });
+  return res.json({
+    ok: true,
+    awb,
+    status: 'In transit',
+    checkpoint: 'Bangalore Hub',
+    updated: new Date().toISOString()
+  });
 });
-
 // Basic admin login (returns ADMIN_TOKEN so UI can store it)
 app.post('/api/admin/login', async (req, res) => {
   res.json({ ok: true, token: process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123' });
