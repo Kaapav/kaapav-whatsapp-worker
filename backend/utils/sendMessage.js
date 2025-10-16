@@ -19,7 +19,7 @@ const API_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}/${PHONE_NUMBER_
 // Back-compat (ensures any legacy code reading process.env sees values)
 process.env.WHATSAPP_ACCESS_TOKEN     = WA_TOKEN;
 process.env.WA_ACCESS_TOKEN           = WA_TOKEN;
-process.env.WHATSAPP_PHONE_NUMBER_ID  = WA_PHONE_ID;
+process.env.PHONE_NUMBER_ID  = WA_PHONE_ID;
 process.env.WA_PHONE_ID               = WA_PHONE_ID;
 
 // Optional integrations (internal, safe to leave empty)
