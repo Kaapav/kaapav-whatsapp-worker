@@ -106,35 +106,148 @@ async function _postToN8n(event, payload) {
 
 // ======== Core sender ========
 async function sendAPIRequest(payload) {
+  // Debug log for every API call
+  console.log('[sendAPIRequest] Attempting to send:', {
+    to: payload?.to,
+    type: payload?.type,
+    phoneId: WA_PHONE_ID,
+    apiUrl: API_URL,
+    tokenExists: !!WA_TOKEN,
+    tokenLength: WA_TOKEN?.length || 0
+  });
+
+  // Check for missing credentials
   if (!WA_TOKEN || !WA_PHONE_ID) {
-    const meta = { tokenLen: (WA_TOKEN || '').length, phoneId: WA_PHONE_ID };
+    const meta = { 
+      tokenLen: (WA_TOKEN || '').length, 
+      phoneId: WA_PHONE_ID,
+      error: 'Missing WhatsApp credentials'
+    };
+    
+    console.error('[sendAPIRequest] Config missing:', meta);
+    
+    // Emit to dashboard
+    if (ioInstance) {
+      ioInstance.to('admins').emit('api_error', {
+        type: 'CONFIG_MISSING',
+        details: meta,
+        ts: Date.now()
+      });
+    }
+    
     throw new Error(`wa_config_missing:${JSON.stringify(meta)}`);
   }
+
   try {
+    // Log the full request details
+    console.log('[sendAPIRequest] Full payload:', JSON.stringify(payload, null, 2));
+    console.log('[sendAPIRequest] API URL:', API_URL);
+    
     const res = await axios.post(API_URL, payload, {
-      headers: { Authorization: `Bearer ${WA_TOKEN}`, 'Content-Type': 'application/json' },
+      headers: { 
+        'Authorization': `Bearer ${WA_TOKEN}`, 
+        'Content-Type': 'application/json' 
+      },
       timeout: 15000,
     });
 
+    // Success logging
+    console.log('[sendAPIRequest] SUCCESS! Response:', {
+      status: res.status,
+      messageId: res.data?.messages?.[0]?.id,
+      to: payload.to
+    });
+
+    // Emit success to dashboard
     try {
-      if (ioInstance) ioInstance.to('admins').emit('outgoing_message', { payload, ts: Date.now() });
+      if (ioInstance) {
+        ioInstance.to('admins').emit('outgoing_message', { 
+          payload, 
+          response: res.data,
+          success: true,
+          messageId: res.data?.messages?.[0]?.id,
+          ts: Date.now() 
+        });
+      }
+      
+      // Sheets logging
       _appendToSheets([
         new Date().toISOString(),
         'OUT',
         payload?.to || '',
         payload?.type || '',
         JSON.stringify(payload).slice(0, 500),
-      ]).catch(() => {});
-      _postToN8n('wa_outgoing', payload).catch(() => {});
-    } catch {}
+      ]).catch((e) => {
+        console.warn('[sendAPIRequest] Sheets append failed:', e.message);
+      });
+      
+      // N8N webhook
+      _postToN8n('wa_outgoing', payload).catch((e) => {
+        console.warn('[sendAPIRequest] N8N post failed:', e.message);
+      });
+    } catch (telemetryError) {
+      console.warn('[sendAPIRequest] Telemetry error (non-critical):', telemetryError.message);
+    }
 
     return res.data;
+    
   } catch (err) {
-    console.error('WhatsApp API error:', err?.response?.data || err.message || err);
-    throw err;
+    // Detailed error information
+    const errorDetails = {
+      message: err.message,
+      code: err.code,
+      response: err?.response?.data,
+      responseStatus: err?.response?.status,
+      responseHeaders: err?.response?.headers,
+      request: {
+        url: API_URL,
+        to: payload?.to,
+        type: payload?.type,
+        phoneId: WA_PHONE_ID,
+        tokenLength: WA_TOKEN?.length || 0
+      },
+      stack: err.stack
+    };
+    
+    // Log to backend console with full details
+    console.error('=====================================');
+    console.error('[sendAPIRequest] WHATSAPP API ERROR');
+    console.error('=====================================');
+    console.error('Error Message:', errorDetails.message);
+    console.error('HTTP Status:', errorDetails.responseStatus);
+    console.error('API Response:', JSON.stringify(errorDetails.response, null, 2));
+    console.error('Request URL:', errorDetails.request.url);
+    console.error('Request To:', errorDetails.request.to);
+    console.error('Request Type:', errorDetails.request.type);
+    console.error('=====================================');
+    
+    // Emit error to dashboard so you can see it in browser
+    if (ioInstance) {
+      ioInstance.to('admins').emit('api_error', {
+        type: 'WHATSAPP_API_ERROR',
+        error: errorDetails,
+        payload: payload,
+        ts: Date.now()
+      });
+    }
+    
+    // Try to log to sheets even on error
+    try {
+      _appendToSheets([
+        new Date().toISOString(),
+        'ERROR',
+        payload?.to || '',
+        payload?.type || '',
+        JSON.stringify(errorDetails).slice(0, 500),
+      ]).catch(() => {});
+    } catch {}
+    
+    // Re-throw with more context
+    const enhancedError = new Error(`WhatsApp API failed: ${errorDetails.message}`);
+    enhancedError.details = errorDetails;
+    throw enhancedError;
   }
 }
-
 async function sendText(to, text) {
   const payload = { messaging_product: 'whatsapp', to: normalizeIN(to), type: 'text', text: { body: text } };
   return sendAPIRequest(payload);
