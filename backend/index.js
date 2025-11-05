@@ -1214,6 +1214,31 @@ app.get('/api/ship/status', requireAdminToken, async (req, res) => {
 app.post('/api/admin/login', async (req, res) => {
   res.json({ ok: true, token: process.env.ADMIN_TOKEN || 'KAAPAV_ADMIN_123' });
 });
+app.get('/api/debug-test', async (req, res) => {
+  const debugInfo = {
+    env: {
+      WA_PHONE_ID: process.env.WA_PHONE_ID ? '✅ Set' : '❌ Missing',
+      WA_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN ? `✅ Set (${process.env.WHATSAPP_ACCESS_TOKEN.length} chars)` : '❌ Missing',
+      API_VERSION: process.env.GRAPH_API_VERSION || 'v17.0',
+      API_URL: `https://graph.facebook.com/${process.env.GRAPH_API_VERSION || 'v17.0'}/${process.env.WA_PHONE_ID}/messages`
+    },
+    test: null
+  };
+  
+  try {
+    // Try a simple text message
+    const result = await sendMessage.sendText('919148330016', 'Debug test at ' + new Date().toLocaleString());
+    debugInfo.test = { success: true, result };
+  } catch (error) {
+    debugInfo.test = { 
+      success: false, 
+      error: error.message,
+      details: error.details || error.response?.data
+    };
+  }
+  
+  res.json(debugInfo);
+});
 // ====== END KAAPAV UI BACKEND =================================================
 
 // ====== Start server ======
