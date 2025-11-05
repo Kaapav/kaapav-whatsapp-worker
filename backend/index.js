@@ -152,8 +152,28 @@ app.post('/api/auth/login', (req, res) => {
 const server = http.createServer(app);
 const io = new Server(server, {
   path: '/socket.io',
-  cors: { origin: ['https://crm.kaapav.com','https://www.crm.kaapav.com'], methods: ['GET','POST'] }
+  cors: { 
+    origin: ['https://crm.kaapav.com', 'https://www.crm.kaapav.com', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET','POST'] 
+  }
 });
+
+// CRITICAL: Set global.io so all modules can access it
+global.io = io;
+
+// NOW wire socket to buttonHandler AFTER io exists
+const buttonHandler = require('./utils/buttonHandler');
+try {
+  if (typeof buttonHandler.setSocket === 'function') {
+    buttonHandler.setSocket(io);
+    console.log('✅ Socket wired to buttonHandler via setSocket(io)');
+  } else {
+    console.error('❌ setSocket is not a function on buttonHandler export');
+  }
+} catch (err) {
+  console.error('❌ Error while calling setSocket:', err?.stack || err);
+}
 
 
 // ====== Mongo Models (optional but recommended) ======
@@ -204,7 +224,7 @@ async function initMongo() {
 }
 initMongo();
 
-// attach socket to buttonHandler (no redundant re-require)
+/*// attach socket to buttonHandler (no redundant re-require)
 try {
   if (typeof setSocket === 'function') {
     setSocket(io);
@@ -214,7 +234,7 @@ try {
   }
 } catch (err) {
   console.error('❌ Error while calling setSocket:', err?.stack || err);
-}
+}*/
 
 // ===== Presence Broadcaster (Online/Offline/Degraded) =====
 function broadcastPresence(state, note) {
@@ -463,7 +483,7 @@ async function saveMessage(userId, direction, type, text, payload, messageId, na
 
     // ✅ Broadcast to admin dashboard
     try {
-      io.to("admin").emit("message_saved", obj);
+      io.to("admins").emit("message_saved", obj);
     } catch (err) {
       console.warn("⚠️ socket emit error in saveMessage:", err.message);
     }
@@ -570,7 +590,8 @@ io.on('connection', async (socket) => {
       return;
     }
 
-    socket.join('admin');
+    socket.join('admins');
+    console.log(`✅ Admin dashboard connected: ${socket.id}`);
 
     try {
       if (SessionModel) {
@@ -780,9 +801,30 @@ app.post('/webhooks/whatsapp/cloudapi', async (req, res) => {
 
     // emit incoming for admin (basic shape)
     // Just broadcast to admin; persistence handled inside processText/processInteractive
-const msgObj = { type: message.type, text: message.text?.body || null, interactive: message.interactive || null };
-io.to('admin').emit('incoming_message', { from, message: msgObj, ts: Date.now() });
+// emit incoming for admin dashboard
+const msgObj = { 
+  type: message.type, 
+  text: message.text?.body || null, 
+  interactive: message.interactive || null 
+};
 
+// Emit to both global.io and io to ensure delivery
+if (global.io) {
+  global.io.to('admins').emit('incoming_message', { 
+    from, 
+    message: msgObj, 
+    ts: Date.now(),
+    direction: 'in' 
+  });
+}
+if (io && io !== global.io) {
+  io.to('admins').emit('incoming_message', { 
+    from, 
+    message: msgObj, 
+    ts: Date.now(),
+    direction: 'in'
+  });
+}
     if (message.type === 'interactive') {
       const reply = message.interactive?.button_reply || message.interactive?.list_reply || {};
       const rawId = (reply?.id || reply?.title || reply?.row_id || '').toString().trim();
@@ -1000,6 +1042,21 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+  // Add after line 1000
+app.get('/api/socket/test', requireAdminToken, (req, res) => {
+  const testMsg = {
+    type: 'test',
+    text: 'Socket test message',
+    ts: Date.now()
+  };
+  
+  if (global.io) {
+    global.io.to('admins').emit('test_message', testMsg);
+    res.json({ ok: true, sent: testMsg, hasSocket: true });
+  } else {
+    res.json({ ok: false, error: 'No socket instance', hasSocket: false });
+  }
+});
 // ====== KAAPAV UI BACKEND (DEDUPED + ENV-ALIGNED) ============================
 // Auth guard
 function requireAdminToken(req, res, next) {
