@@ -160,8 +160,20 @@ function pickLang(session) {
   return (session && session.lang) ? session.lang : 'en';
 }
 
+// In buttonHandler.js, modify the emit function:
 function emit(ev, payload) {
-  try { ioInstance?.emit(ev, payload); } catch {}
+  console.log(`[EMIT DEBUG] Event: ${ev}, Socket exists: ${!!ioInstance}`, payload);
+  try { 
+    if (ioInstance) {
+      ioInstance.emit(ev, payload);
+      // Also emit to admins room for dashboard
+      ioInstance.to('admins').emit(ev, payload);
+    } else {
+      console.error('[EMIT] Socket not initialized! Dashboard won't see this event');
+    }
+  } catch (e) {
+    console.error('[EMIT] Error:', e.message);
+  }
 }
 
 // ===== REVISED: Core router with error handling and timeouts =====
