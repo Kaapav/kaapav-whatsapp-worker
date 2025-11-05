@@ -71,7 +71,7 @@ const withTimeout = (promise, ms = 5000) => {
   ]);
 };
 
-// ===== NEW: Rate Limit Feedback Helper =====
+/*// ===== NEW: Rate Limit Feedback Helper =====
 async function handleRateLimitedUser(from, action) {
   emit('router_skip_rl', { from, action, ts: Date.now() });
   
@@ -86,7 +86,7 @@ async function handleRateLimitedUser(from, action) {
       }
     }
   }, RL_MS + 100); // Slightly after cooldown period
-}
+} */
 
 // 3) Session in-memory patch helper
 async function defaultUpsertSession(userId, patch) { /* no-op for embedded usage */ }
@@ -325,9 +325,9 @@ async function handleIncomingWebhook(body, upsertSession = defaultUpsertSession)
 
           // REVISED: Better rate limit handling
           if (allowedToSend(from)) {
-            await queuedRoute(action, from, { lang: 'en' }, upsertSession);
+            await queuedRoute(from, action, { lang: 'en' }, upsertSession);
           } else {
-            await handleRateLimitedUser(from, action);
+         emit('router_skip_rl', { from, action, ts: Date.now() });
           }
 
           emit('button_pressed', { from, id: raw, action, ts: Date.now() });
@@ -362,9 +362,9 @@ async function handleIncomingWebhook(body, upsertSession = defaultUpsertSession)
 
           // REVISED: Better rate limit handling
           if (allowedToSend(from)) {
-            await queuedRoute(action, from, { lang: detectedLang }, upsertSession);
+            await queuedRoute(from, action, { lang: detectedLang }, upsertSession);
           } else {
-            await handleRateLimitedUser(from, action);
+          emit('router_skip_rl', { from, action, ts: Date.now() });
           }
 
           emit('text_routed', { from, original, translated, detectedLang, action, ts: Date.now() });
@@ -408,18 +408,18 @@ async function handleButtonClick(from, payload, session = {}, upsertSession = de
     // Normalize button ID
     const action = normalizeId(raw);
     if (action) {
-      return await queuedRoute(action, from, session, upsertSession);
+      return await queuedRoute(from, action, session, upsertSession);
     }
 
     // Keyword fallback
     for (const k of keywords) {
       if (k.re.test(raw)) {
-        return await queuedRoute(k.action, from, session, upsertSession);
+        return await queuedRoute(from, k.action, session, upsertSession);
       }
     }
 
     // Default
-    return await queuedRoute('MAIN_MENU', from, session, upsertSession);
+    return await queuedRoute(from, 'MAIN_MENU', session, upsertSession);
   } catch (error) {
     console.error('[handleButtonClick] Error:', error.message);
     return false;
