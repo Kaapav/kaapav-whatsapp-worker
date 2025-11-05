@@ -142,6 +142,7 @@ async function sendText(to, text) {
 
 // reply buttons (WhatsApp supports up to 3 quick reply buttons)
 async function sendReplyButtons(to, bodyText, buttons /* [{id,title}] max 3 */, footer) {
+  const normalizedTo = normalizeIN(to); 
   if (!buttons || !buttons.length) return sendText(to, bodyText);
   if (buttons.length > 3) buttons = buttons.slice(0, 3);
   const waButtons = buttons.map((b) => ({
@@ -200,6 +201,7 @@ async function sendTextWithLinks(to, text) {
 // ======== Menus & CTAs (IDs synced with buttonHandler.js) ========
 // ======== MAIN MENU ========
 async function sendMainMenu(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "✨ Welcome to *KAAPAV Luxury Jewellery*! ✨\n\n👑 Crafted Elegance • Timeless Sparkle 💎\nChoose an option below 👇",
     lang
@@ -209,7 +211,7 @@ async function sendMainMenu(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
@@ -236,6 +238,7 @@ async function sendSimpleInfo(to, text, lang = "en") {
 
 // ======== JEWELLERY MENU ========
 async function sendJewelleryCategoriesMenu(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "💎 *Explore KAAPAV Collections* 💎\n\n✨ Handcrafted designs, curated for royalty 👑",
     lang
@@ -245,7 +248,7 @@ async function sendJewelleryCategoriesMenu(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
@@ -265,6 +268,7 @@ async function sendJewelleryCategoriesMenu(to, lang = 'en') {
 
 // ======== OFFERS MENU ========
 async function sendOffersAndMoreMenu(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "💫 *Exclusive Luxury Offers!* 💫\n\n🎉 Flat 50% OFF Select Styles ✨\n🚚 Free Shipping Above ₹498/- 💝",
     lang
@@ -274,7 +278,7 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
@@ -294,6 +298,7 @@ async function sendOffersAndMoreMenu(to, lang = 'en') {
 
 // ======== PAYMENT & TRACK MENU ========
 async function sendPaymentAndTrackMenu(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "💎 *Complete Your Sparkle with KAAPAV* 💎\n\n" +
     "Choose a secure option:\n" +
@@ -307,7 +312,7 @@ async function sendPaymentAndTrackMenu(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
@@ -327,6 +332,7 @@ async function sendPaymentAndTrackMenu(to, lang = 'en') {
 
 // ======== CHAT MENU ========
 async function sendChatWithUsCta(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "💬 *Need Help? We’re Here for You!* 💬\n\nPlease describe your query below ⬇️\nOur support team will assist you with luxury care 👑✨",
     lang
@@ -336,7 +342,7 @@ async function sendChatWithUsCta(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
@@ -356,6 +362,7 @@ async function sendChatWithUsCta(to, lang = 'en') {
 
 // ======== CHAT SUBMENU (FB & Insta) ========
 async function sendSocialMenu(to, lang = 'en') {
+  const normalizedTo = normalizeIN(to);
   const body = await fromEnglish(
     "🌐 *Follow KAAPAV on Social Media* 🌐\n\nStay connected for luxury vibes 👑✨",
     lang
@@ -365,7 +372,7 @@ async function sendSocialMenu(to, lang = 'en') {
 
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    to: normalizedTo,
     type: "interactive",
     interactive: {
       type: "button",
