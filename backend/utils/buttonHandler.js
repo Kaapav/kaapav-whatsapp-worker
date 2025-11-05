@@ -112,7 +112,9 @@ const idMap = {
   'open_website': 'OPEN_WEBSITE',
   'open_catalog': 'OPEN_CATALOG',
   'open_bestsellers': 'OPEN_BESTSELLERS',
-  'pay_now': 'PAY_NOW',
+  'bestsellers': 'OPEN_BESTSELLERS', 
+  'payment_track': 'PAYMENT_MENU',
+  'pay_now': 'PAYMENT_MENU',
   'track_order': 'TRACK_ORDER',
   'chat_now': 'CHAT_NOW',
   'open_facebook': 'OPEN_FACEBOOK',
@@ -163,43 +165,44 @@ function emit(ev, payload) {
 }
 
 // ===== REVISED: Core router with error handling and timeouts =====
-async function routeAction(action, from, session, upsertSession = defaultUpsertSession) {
+async function routeAction(action, from, session, upsertSession = async () => {}) {
   try {
-    const lang = pickLang(session);
-    emit('route_action', { from, action, lang, ts: Date.now() });
+    // Extract lang from session object OR use it as lang if it's a string
+    const lang = (typeof session === 'string') ? session : (session?.lang || 'en');
+    
+    if (ioInstance) ioInstance.emit("route_action", { from, action, session, ts: Date.now() });
 
     switch (action) {
-      // Menus - Add timeout protection to each
-      case 'MAIN_MENU':
-        await withTimeout(sendMessage.sendMainMenu(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'main' });
+      case "MAIN_MENU":
+        await sendMessage.sendMainMenu(from, lang);  // ✅ Pass lang, not session
+        await upsertSession(from, { lastMenu: "main" });
         return true;
 
-      case 'JEWELLERY_MENU':
-        await withTimeout(sendMessage.sendJewelleryCategoriesMenu(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'jewellery' });
+      case "JEWELLERY_MENU":
+        await sendMessage.sendJewelleryCategoriesMenu(from, lang);  // ✅ Pass lang
+        await upsertSession(from, { lastMenu: "jewellery" });
         return true;
 
-      case 'OFFERS_MENU':
-        await withTimeout(sendMessage.sendOffersAndMoreMenu(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'offers' });
+      case "OFFERS_MENU":
+        await sendMessage.sendOffersAndMoreMenu(from, lang);  // ✅ Pass lang
+        await upsertSession(from, { lastMenu: "offers" });
         return true;
 
-      case 'PAYMENT_MENU':
-        await withTimeout(sendMessage.sendPaymentAndTrackMenu(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'payment_track' });
+      case "PAYMENT_MENU":
+        await sendMessage.sendPaymentAndTrackMenu(from, lang);  // ✅ Pass lang
+        await upsertSession(from, { lastMenu: "payment_track" });
         return true;
 
-      case 'CHAT_MENU':
-        await withTimeout(sendMessage.sendChatWithUsCta(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'chat' });
+      case "CHAT_MENU":
+        await sendMessage.sendChatWithUsCta(from, lang);  // ✅ Pass lang
+        await upsertSession(from, { lastMenu: "chat" });
         return true;
 
-      case 'SOCIAL_MENU':
-        await withTimeout(sendMessage.sendSocialMenu(from, lang), 5000);
-        await upsertSession(from, { lastMenu: 'social' });
+      case "SOCIAL_MENU":
+        await sendMessage.sendSocialMenu(from, lang);  // ✅ Pass lang
+        await upsertSession(from, { lastMenu: "social" });
         return true;
-
+        
       // CTAs / Links - Add timeout protection
       case 'OPEN_WEBSITE':
         await withTimeout(
@@ -258,9 +261,10 @@ async function routeAction(action, from, session, upsertSession = defaultUpsertS
         return true;
 
       case 'SHOW_LIST':
-        await withTimeout(
-          sendMessage.sendSimpleInfo(from, `📜 Categories coming soon.\nMeanwhile explore:\n${sendMessage.LINKS.website}`, lang),
-          5000
+       // Since sendProductList doesn't exist, use fallback:
+        await sendMessage.sendSimpleInfo(from, 
+          "📜 Categories coming soon.\nMeanwhile explore:\n" + sendMessage.LINKS.website, 
+          lang  // ✅ Pass lang
         );
         return true;
 
