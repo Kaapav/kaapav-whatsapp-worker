@@ -169,7 +169,7 @@ function emit(ev, payload) {
       // Also emit to admins room for dashboard
       ioInstance.to('admins').emit(ev, payload);
     } else {
-      console.error('[EMIT] Socket not initialized! Dashboard won't see this event');
+      console.error('[EMIT] Socket not initialized! Dashboard will not see this event');
     }
   } catch (e) {
     console.error('[EMIT] Error:', e.message);
