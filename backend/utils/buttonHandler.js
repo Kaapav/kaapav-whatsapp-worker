@@ -188,32 +188,98 @@ async function routeAction(action, from, session, upsertSession = async () => {}
       case "MAIN_MENU":
         await sendMessage.sendMainMenu(from, lang);  // ✅ Pass lang, not session
         await upsertSession(from, { lastMenu: "main" });
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case "JEWELLERY_MENU":
         await sendMessage.sendJewelleryCategoriesMenu(from, lang);  // ✅ Pass lang
         await upsertSession(from, { lastMenu: "jewellery" });
-        return true;
+       // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case "OFFERS_MENU":
         await sendMessage.sendOffersAndMoreMenu(from, lang);  // ✅ Pass lang
         await upsertSession(from, { lastMenu: "offers" });
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case "PAYMENT_MENU":
         await sendMessage.sendPaymentAndTrackMenu(from, lang);  // ✅ Pass lang
         await upsertSession(from, { lastMenu: "payment_track" });
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case "CHAT_MENU":
         await sendMessage.sendChatWithUsCta(from, lang);  // ✅ Pass lang
         await upsertSession(from, { lastMenu: "chat" });
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case "SOCIAL_MENU":
         await sendMessage.sendSocialMenu(from, lang);  // ✅ Pass lang
         await upsertSession(from, { lastMenu: "social" });
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
         
       // CTAs / Links - Add timeout protection
       case 'OPEN_WEBSITE':
@@ -221,56 +287,144 @@ async function routeAction(action, from, session, upsertSession = async () => {}
           sendMessage.sendSimpleInfo(from, `🌐 Browse our website:\n${sendMessage.LINKS.website}`, lang),
           5000
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'OPEN_CATALOG':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `📱 WhatsApp Catalogue:\n${sendMessage.LINKS.whatsappCatalog}`, lang),
           5000
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'OPEN_BESTSELLERS':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `🛍️ Shop Bestsellers:\n${sendMessage.LINKS.offersBestsellers}`, lang),
           5000
         );
-        return true;
+       // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'PAY_NOW':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `💳 Pay via UPI/Card/Netbanking:\n${sendMessage.LINKS.payment}`, lang),
           5000
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'TRACK_ORDER':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `📦 Track your order:\n${sendMessage.LINKS.shiprocket}`, lang),
           5000
         );
-        return true;
+       // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'CHAT_NOW':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `💬 Chat with us:\n${sendMessage.LINKS.waMeChat}`, lang),
           5000
         );
-        return true;
+       // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'OPEN_FACEBOOK':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `📘 Facebook:\n${sendMessage.LINKS.facebook}`, lang),
           5000
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'OPEN_INSTAGRAM':
         await withTimeout(
           sendMessage.sendSimpleInfo(from, `📸 Instagram:\n${sendMessage.LINKS.instagram}`, lang),
           5000
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       case 'SHOW_LIST':
        // Since sendProductList doesn't exist, use fallback:
@@ -278,7 +432,18 @@ async function routeAction(action, from, session, upsertSession = async () => {}
           "📜 Categories coming soon.\nMeanwhile explore:\n" + sendMessage.LINKS.website, 
           lang  // ✅ Pass lang
         );
-        return true;
+        // EMIT OUTGOING MESSAGE TO DASHBOARD
+  if (global.io) {
+    global.io.to('admins').emit('outgoing_message', {
+      to: from,
+      type: 'menu',
+      action: 'MAIN_MENU',
+      ts: Date.now(),
+      direction: 'out',
+      autoresponder: true
+    });
+  }
+  return true;
 
       default:
         return false;
