@@ -143,7 +143,7 @@ async function sendText(to, text) {
 // reply buttons (WhatsApp supports up to 3 quick reply buttons)
 async function sendReplyButtons(to, bodyText, buttons /* [{id,title}] max 3 */, footer) {
   const normalizedTo = normalizeIN(to); 
-  if (!buttons || !buttons.length) return sendText(to, bodyText);
+  if (!buttons || !buttons.length) return sendText(normalizedTo, bodyText);
   if (buttons.length > 3) buttons = buttons.slice(0, 3);
   const waButtons = buttons.map((b) => ({
     type: 'reply',
@@ -152,7 +152,7 @@ async function sendReplyButtons(to, bodyText, buttons /* [{id,title}] max 3 */, 
 
   const payload = {
     messaging_product: 'whatsapp',
-    to,
+    to: normalizedTo,
     type: 'interactive',
     interactive: {
       type: 'button',
@@ -167,10 +167,11 @@ async function sendReplyButtons(to, bodyText, buttons /* [{id,title}] max 3 */, 
 
 // CTA url interactive (send text first to ensure a tappable URL)
 async function sendCtaUrl(to, bodyText, displayText, url, footer) {
-  await sendText(to, `${bodyText}\n${displayText}: ${url}`);
+  const normalizedTo = normalizeIN(to);
+  await sendText(normalizedTo, `${bodyText}\n${displayText}: ${url}`);
   const payload = {
     messaging_product: 'whatsapp',
-    to,
+    to: normalizedTo,
     type: 'interactive',
     interactive: {
       type: 'button',
