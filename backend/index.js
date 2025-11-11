@@ -1288,8 +1288,10 @@ async function sendKeepalivePing() {
 }
 
 // Send first ping immediately, then repeat on interval
-sendKeepalivePing();
-setInterval(sendKeepalivePing, KEEPALIVE_INTERVAL_MS);
+setTimeout(() => {
+  sendKeepalivePing();
+  setInterval(sendKeepalivePing, KEEPALIVE_INTERVAL);
+}, 30000);
 
 // ====== Redis Keepalive (prevent Upstash auto-delete) ======
 const REDIS_KEEPALIVE_INTERVAL = 24 * 60 * 60 * 1000; // once per day
