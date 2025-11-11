@@ -67,9 +67,6 @@ const {
   GITHUB_REPO,               // "owner/repo"
   GITHUB_LOG_ISSUES = '0',
 
-
-  RENDER_EXTERNAL_URL,       // e.g., https://your-app.onrender.com
-
   // basic anti-spam / idempotency
   DUPLICATE_WINDOW_MS = 20000,
 
