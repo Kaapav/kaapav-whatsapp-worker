@@ -1260,42 +1260,56 @@ if (require.main === module) {
     );
   }
 }
-// ====== Keepalive ping (to prevent Render idling) ======
-setInterval(async () => {
+import axios from "axios";
+
+// ====== Keepalive Ping (to prevent Render idling) ======
+const KEEPALIVE_INTERVAL_MS = parseInt(process.env.KEEPALIVE_INTERVAL_MS) || 600000; // default: 10 min
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
+
+const istFormatter = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: true
+});
+
+async function sendKeepalivePing() {
   if (!RENDER_EXTERNAL_URL) {
     console.warn("⚠️ No RENDER_EXTERNAL_URL set, skipping keepalive");
     return;
   }
 
-  const interval = parseInt(KEEPALIVE_INTERVAL_MS) || 600000;
-  const nextPing = new Date(Date.now() + interval);
-
-  const istFormatter = new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  });
+  const nextPing = new Date(Date.now() + KEEPALIVE_INTERVAL_MS);
 
   try {
-    await axios.get(`${RENDER_EXTERNAL_URL}/test/selfcheck`, { timeout: 10000 });
-    console.log(`🔄 Keepalive ping sent | next @ ${istFormatter.format(nextPing)}`);
+    const url = `${RENDER_EXTERNAL_URL.replace(/\/$/, "")}/test/selfcheck`;
+    await axios.get(url, { timeout: 10000 });
+    console.log(`🔄 Keepalive ping sent → next @ ${istFormatter.format(nextPing)}`);
   } catch (err) {
     console.warn("⚠️ Keepalive ping failed:", err.message || err);
   }
-}, parseInt(KEEPALIVE_INTERVAL_MS) || 600000);
+}
 
+// Send first ping immediately, then repeat on interval
+sendKeepalivePing();
+setInterval(sendKeepalivePing, KEEPALIVE_INTERVAL_MS);
 
 // ====== Redis Keepalive (prevent Upstash auto-delete) ======
-setInterval(async () => {
+const REDIS_KEEPALIVE_INTERVAL = 24 * 60 * 60 * 1000; // once per day
+
+async function sendRedisKeepalive(redis) {
   try {
     await redis.set("keepalive", Date.now());
     console.log("🔄 Redis keepalive ping sent");
   } catch (err) {
-    console.warn("⚠️ Redis keepalive failed:", err.message);
+    console.warn("⚠️ Redis keepalive failed:", err.message || err);
   }
-}, 24 * 60 * 60 * 1000); // once per day
+}
+
+// Call once immediately and repeat daily
+sendRedisKeepalive(redis);
+setInterval(() => sendRedisKeepalive(redis), REDIS_KEEPALIVE_INTERVAL);
 
 // ====== Graceful shutdown ======
 function shutdown(sig) {
