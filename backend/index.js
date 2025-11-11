@@ -1260,7 +1260,6 @@ if (require.main === module) {
     );
   }
 }
-import axios from "axios";
 
 // ====== Keepalive Ping (to prevent Render idling) ======
 const KEEPALIVE_INTERVAL_MS = parseInt(process.env.KEEPALIVE_INTERVAL_MS) || 600000; // default: 10 min
