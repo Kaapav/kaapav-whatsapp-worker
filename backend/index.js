@@ -78,7 +78,8 @@ const {
 const app = express();
 app.use(bodyParser.json({ limit: '2mb' }));
 app.use(cors());
-
+//Server is live Check
+app.get("/test/selfcheck", (req, res) => res.status(200).send("✅ Server is alive"));
 
 // keep probe optional, never block health
 app.get('/api/health', async (_req, res) => {
@@ -1221,7 +1222,7 @@ app.get('/api/debug-test', async (req, res) => {
     },
     test: null
   };
-  app.get("/test/selfcheck", (req, res) => res.status(200).send("✅ Server is alive"));
+  
 
   try {
     // Try a simple text message
