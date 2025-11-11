@@ -67,7 +67,7 @@ const {
   GITHUB_REPO,               // "owner/repo"
   GITHUB_LOG_ISSUES = '0',
 
-  KEEPALIVE_INTERVAL_MS = 600000,
+
   RENDER_EXTERNAL_URL,       // e.g., https://your-app.onrender.com
 
   // basic anti-spam / idempotency
