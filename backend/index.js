@@ -1221,7 +1221,8 @@ app.get('/api/debug-test', async (req, res) => {
     },
     test: null
   };
-  
+  app.get("/test/selfcheck", (req, res) => res.status(200).send("✅ Server is alive"));
+
   try {
     // Try a simple text message
     const result = await sendMessage.sendText('919148330016', 'Debug test at ' + new Date().toLocaleString());
@@ -1290,7 +1291,7 @@ async function sendKeepalivePing() {
 // Send first ping immediately, then repeat on interval
 setTimeout(() => {
   sendKeepalivePing();
-  setInterval(sendKeepalivePing, KEEPALIVE_INTERVAL);
+  setInterval(sendKeepalivePing, KEEPALIVE_INTERVAL_MS);
 }, 30000);
 
 // ====== Redis Keepalive (prevent Upstash auto-delete) ======
