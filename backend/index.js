@@ -43,7 +43,7 @@ try {
 // utils
 const sendMessage = require('./utils/sendMessage');
 const { handleButtonClick, setSocket } = require('./utils/buttonHandler');
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || 'kaapavverify';
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.VERIFY_TOKEN || process.env.WA_VERIFY_TOKEN || 'kaapavverify';
 
 // ====== ENV ======
 const PORT = Number(process.env.PORT || process.env.WORKER_PORT || 5555);
@@ -851,7 +851,6 @@ if (io && io !== global.io) {
 // ✅ WHATSAPP CLOUD API WEBHOOK HANDLER (PRODUCTION READY)
 // ==========================================================
 app.get('/webhook/wa', (req, res) => {
-  const VERIFY_TOKEN = process.env.WA_VERIFY_TOKEN || 'kaapav_verify_123';
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
